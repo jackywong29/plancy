@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS ideas (
   text TEXT NOT NULL,
   tag TEXT NOT NULL DEFAULT '',
   starred INTEGER NOT NULL DEFAULT 0,
+  done INTEGER NOT NULL DEFAULT 0,
   createdAt INTEGER NOT NULL,
   syncedAt INTEGER NOT NULL
 );
@@ -79,6 +80,8 @@ export function migrate(): void {
     const cols = db.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
     if (!cols.includes('seriesId')) db.execSync(`ALTER TABLE ${table} ADD COLUMN seriesId TEXT NOT NULL DEFAULT ''`);
   }
+  const ideaCols = db.getAllSync<{ name: string }>('PRAGMA table_info(ideas)').map((c) => c.name);
+  if (!ideaCols.includes('done')) db.execSync('ALTER TABLE ideas ADD COLUMN done INTEGER NOT NULL DEFAULT 0');
   // Rows from before series existed: repeating tasks that look alike become one
   // series, otherwise each of them would spawn its own copies.
   db.execSync(`
@@ -127,6 +130,7 @@ const asIdea = (r: Row): Idea => ({
   text: String(r.text),
   tag: String(r.tag),
   starred: Number(r.starred) === 1,
+  done: Number(r.done) === 1,
   createdAt: Number(r.createdAt),
   syncedAt: Number(r.syncedAt),
 });
@@ -180,12 +184,12 @@ export function saveEntry(e: JournalEntry): void {
 
 export function saveIdea(i: Idea): void {
   db.runSync(
-    `INSERT INTO ideas (id, text, tag, starred, createdAt, syncedAt)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO ideas (id, text, tag, starred, done, createdAt, syncedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
-       text = excluded.text, tag = excluded.tag,
-       starred = excluded.starred, syncedAt = excluded.syncedAt`,
-    [i.id, i.text, i.tag, i.starred ? 1 : 0, i.createdAt, i.syncedAt],
+       text = excluded.text, tag = excluded.tag, starred = excluded.starred,
+       done = excluded.done, syncedAt = excluded.syncedAt`,
+    [i.id, i.text, i.tag, i.starred ? 1 : 0, i.done ? 1 : 0, i.createdAt, i.syncedAt],
   );
 }
 
@@ -209,6 +213,18 @@ export function removeRecord(kind: 'tasks' | 'journal' | 'ideas' | 'money', id: 
 /** Undo: bring a record back and drop the tombstone that would out-vote it in a sync merge. */
 export function forgetTombstone(id: string): void {
   db.runSync('DELETE FROM tombstones WHERE id = ?', [id]);
+}
+
+/**
+ * Deletes every task, journal entry, idea and finance entry, each with its
+ * tombstone like any other delete. Settings stay. Test builds only.
+ */
+export function eraseAll(): void {
+  db.withTransactionSync(() => {
+    for (const kind of ['tasks', 'journal', 'ideas', 'money'] as const) {
+      for (const { id } of db.getAllSync<{ id: string }>(`SELECT id FROM ${kind}`)) removeRecord(kind, id);
+    }
+  });
 }
 
 /* ---------- settings ---------- */

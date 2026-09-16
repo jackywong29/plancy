@@ -58,16 +58,23 @@ export default function MoneySheet() {
       <Stack.Screen
         options={{
           title: formatMonthLong(month),
-          headerLeft: () => (
-            <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
-              <Text style={{ color: theme.accentText, fontSize: 17 }}>Cancel</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: !canSave }} onPress={save} disabled={!canSave} hitSlop={10}>
-              <Text style={{ color: canSave ? theme.accentText : theme.ink3, fontSize: 17, fontWeight: '600' }}>Add</Text>
-            </Pressable>
-          ),
+          // Native bar buttons, so iOS draws their glass for the current
+          // appearance: close on the left, confirm on the right, as in iOS 26.
+          unstable_headerLeftItems: () => [
+            { type: 'button', label: 'Cancel', icon: { type: 'sfSymbol', name: 'xmark' }, onPress: () => router.back() },
+          ],
+          unstable_headerRightItems: () => [
+            {
+              type: 'button',
+              label: 'Add',
+              accessibilityLabel: 'Add entry',
+              icon: { type: 'sfSymbol', name: 'checkmark' },
+              variant: 'prominent',
+              tintColor: theme.accent,
+              disabled: !canSave,
+              onPress: save,
+            },
+          ],
         }}
       />
       <ScrollView
@@ -101,6 +108,7 @@ export default function MoneySheet() {
               onChangeText={setLabel}
               placeholder={placeholder}
               placeholderTextColor={theme.ink3}
+              keyboardAppearance={theme.scheme}
               autoFocus
               accessibilityLabel="Name"
               style={{ flex: 1, color: theme.ink, fontSize: 17, paddingVertical: 4 }}
@@ -113,6 +121,7 @@ export default function MoneySheet() {
               onChangeText={setAmount}
               placeholder="0.00"
               placeholderTextColor={theme.ink3}
+              keyboardAppearance={theme.scheme}
               keyboardType="decimal-pad"
               accessibilityLabel={`Amount in ${settings.currency}`}
               style={{ flex: 1, color: theme.ink, fontSize: 17, paddingVertical: 4, fontVariant: ['tabular-nums'] }}
@@ -131,6 +140,7 @@ export default function MoneySheet() {
                   onChangeText={setDueDay}
                   placeholder="1 to 31"
                   placeholderTextColor={theme.ink3}
+                  keyboardAppearance={theme.scheme}
                   keyboardType="number-pad"
                   maxLength={2}
                   accessibilityLabel="Due day of the month"

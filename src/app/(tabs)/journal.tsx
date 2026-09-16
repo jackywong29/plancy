@@ -124,6 +124,7 @@ export default function JournalScreen() {
           textAlignVertical="top"
           placeholder="How did the day go? What happened, what mattered, what is on your mind?"
           placeholderTextColor={theme.ink3}
+          keyboardAppearance={theme.scheme}
           accessibilityLabel="Journal entry"
           style={{ color: theme.ink, fontSize: Type.sectionTitle, lineHeight: 25, minHeight: 200 }}
         />
@@ -142,6 +143,7 @@ export default function JournalScreen() {
             onChangeText={setQuery}
             placeholder="Search your journal"
             placeholderTextColor={theme.ink3}
+            keyboardAppearance={theme.scheme}
             clearButtonMode="while-editing"
             returnKeyType="search"
             accessibilityLabel="Search your journal"

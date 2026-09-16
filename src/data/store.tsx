@@ -11,6 +11,7 @@ import { createContext, use, useCallback, useMemo, useState, type ReactNode } fr
 import { addDays, settingsDefaults, todayIso } from '@/lib/format';
 
 import {
+  eraseAll,
   forgetTombstone,
   loadAll,
   migrate,
@@ -24,7 +25,7 @@ import {
   writeSetting,
 } from './db';
 import { missingBills, upcomingRepeats } from './repeats';
-import { seedIfEmpty } from './seed';
+import { seedIfEmpty, seedSample } from './seed';
 import type { Idea, JournalEntry, Mood, MoneyEntry, Repeat, Settings, Task } from './types';
 
 migrate();
@@ -49,23 +50,30 @@ type Store = Data & {
   writeJournal: (date: string, patch: { body?: string; mood?: Mood }) => void;
   addIdea: (raw: string) => void;
   toggleStar: (id: string) => void;
+  toggleIdeaDone: (id: string) => void;
   deleteIdea: (id: string) => void;
+  restoreIdea: (idea: Idea) => void;
   toggleBillPaid: (id: string) => void;
   addMoney: (input: Omit<MoneyEntry, 'id' | 'seriesId' | 'createdAt' | 'syncedAt'>) => void;
   deleteMoney: (id: string) => void;
+  /** Test builds: erase every record, then optionally load the sample rows. */
+  resetData: (withSample: boolean) => void;
 };
 
 const StoreContext = createContext<Store | null>(null);
 
+/** Everything in SQLite, with the coming week of repeating tasks filled in. */
+function loadFilled(): Data {
+  const loaded = loadAll();
+  // Keep the coming week filled in, so tomorrow's run already exists tonight.
+  const today = todayIso();
+  const created = upcomingRepeats(loaded.tasks, today, addDays(today, 7)).map((t) => ({ id: uid(), ...t }));
+  for (const t of created) saveTask(t);
+  return { ...loaded, tasks: [...loaded.tasks, ...created] };
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<Data>(() => {
-    const loaded = loadAll();
-    // Keep the coming week filled in, so tomorrow's run already exists tonight.
-    const today = todayIso();
-    const created = upcomingRepeats(loaded.tasks, today, addDays(today, 7)).map((t) => ({ id: uid(), ...t }));
-    for (const t of created) saveTask(t);
-    return { ...loaded, tasks: [...loaded.tasks, ...created] };
-  });
+  const [data, setData] = useState<Data>(loadFilled);
   const [settings, setSettings] = useState<Settings>(() => readSettings(settingsDefaults()));
 
   const stamp = () => Date.now();
@@ -168,6 +176,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       text: tag ? text.replace(/#[\p{L}\d-]+/u, '').replace(/\s{2,}/g, ' ').trim() || text : text,
       tag,
       starred: false,
+      done: false,
       createdAt: stamp(),
       syncedAt: stamp(),
     };
@@ -187,9 +196,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const toggleIdeaDone = useCallback((id: string) => {
+    setData((d) => ({
+      ...d,
+      ideas: d.ideas.map((i) => {
+        if (i.id !== id) return i;
+        const next = { ...i, done: !i.done, syncedAt: stamp() };
+        saveIdea(next);
+        return next;
+      }),
+    }));
+  }, []);
+
   const deleteIdea = useCallback((id: string) => {
     removeRecord('ideas', id);
     setData((d) => ({ ...d, ideas: d.ideas.filter((i) => i.id !== id) }));
+  }, []);
+
+  const restoreIdea = useCallback((idea: Idea) => {
+    forgetTombstone(idea.id);
+    const next = { ...idea, syncedAt: stamp() };
+    saveIdea(next);
+    setData((d) => ({ ...d, ideas: [next, ...d.ideas.filter((i) => i.id !== idea.id)] }));
   }, []);
 
   const toggleBillPaid = useCallback((id: string) => {
@@ -216,6 +244,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => ({ ...d, money: d.money.filter((m) => m.id !== id) }));
   }, []);
 
+  const resetData = useCallback((withSample: boolean) => {
+    eraseAll();
+    if (withSample) seedSample();
+    setData(loadFilled());
+  }, []);
+
   const value = useMemo<Store>(
     () => ({
       ...data,
@@ -232,12 +266,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       writeJournal,
       addIdea,
       toggleStar,
+      toggleIdeaDone,
       deleteIdea,
+      restoreIdea,
       toggleBillPaid,
       addMoney,
       deleteMoney,
+      resetData,
     }),
-    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, deleteIdea, toggleBillPaid, addMoney, deleteMoney],
+    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea, toggleBillPaid, addMoney, deleteMoney, resetData],
   );
 
   return <StoreContext value={value}>{children}</StoreContext>;

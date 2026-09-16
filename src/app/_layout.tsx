@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationTheme } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -38,14 +38,32 @@ function Themed() {
 
 function Shell() {
   const theme = useTheme();
+  // The navigation library tells iOS whether each header is light or dark
+  // from its own theme, not the phone's. Without this, headers and their
+  // glass buttons stay light in a dark plancy.
+  const base = theme.scheme === 'dark' ? DarkTheme : DefaultTheme;
+  const navTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: theme.accentText,
+      background: theme.ground,
+      card: theme.ground,
+      text: theme.ink,
+      border: theme.line,
+      notification: theme.bad,
+    },
+  };
   return (
-    <>
+    <NavigationTheme value={navTheme}>
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           contentStyle: { backgroundColor: theme.ground },
           headerStyle: { backgroundColor: theme.ground },
           headerTintColor: theme.accentText,
+          // Just the chevron, as in iOS 26's own apps.
+          headerBackButtonDisplayMode: 'minimal',
           headerTitleStyle: { color: theme.ink },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -56,6 +74,6 @@ function Shell() {
           options={{ presentation: 'modal', headerShadowVisible: false }}
         />
       </Stack>
-    </>
+    </NavigationTheme>
   );
 }

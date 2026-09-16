@@ -1,10 +1,18 @@
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import Constants from 'expo-constants';
+import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Card, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { PALETTE } from '@/theme/palette';
 import { Space, Type, useTheme } from '@/theme/theme';
+
+/**
+ * Sample data and erase, for trying the app out. In development and in the
+ * build on Jacky's own iPhone (app.config.js sets testTools), never in the
+ * App Store build.
+ */
+const TEST_TOOLS = __DEV__ || Constants.expoConfig?.extra?.testTools === true;
 
 const APPEARANCES: { value: Settings['appearance']; label: string }[] = [
   { value: 'system', label: 'System' },
@@ -13,7 +21,7 @@ const APPEARANCES: { value: Settings['appearance']; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { settings, setSetting } = useStore();
+  const { settings, setSetting, resetData } = useStore();
   const theme = useTheme();
 
   return (
@@ -148,6 +156,40 @@ export default function SettingsScreen() {
       <Text style={[styles.footnote, { color: theme.ink2 }]}>
         Your data stays on your devices and in your own iCloud. Nobody at Clancy can see it.
       </Text>
+
+      {TEST_TOOLS ? (
+        <>
+          <SectionHead title="Testing" />
+          <Card>
+            <Row
+              first
+              accessibilityLabel="Load sample data"
+              onPress={() =>
+                Alert.alert(
+                  'Replace your data with sample data?',
+                  'Your tasks, journal, ideas and finance entries on this iPhone are erased first.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Replace', style: 'destructive', onPress: () => resetData(true) },
+                  ],
+                )
+              }>
+              <Text style={{ flex: 1, color: theme.accentText, fontSize: Type.body }}>Load sample data</Text>
+            </Row>
+            <Row
+              accessibilityLabel="Erase all data"
+              onPress={() =>
+                Alert.alert('Erase all data?', 'Tasks, journal, ideas and finance entries on this iPhone are deleted. Settings stay.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Erase', style: 'destructive', onPress: () => resetData(false) },
+                ])
+              }>
+              <Text style={{ flex: 1, color: theme.bad, fontSize: Type.body }}>Erase all data</Text>
+            </Row>
+          </Card>
+          <Text style={[styles.footnote, { color: theme.ink2 }]}>Only in test builds, not in the App Store version.</Text>
+        </>
+      ) : null}
 
       <View style={styles.about}>
         <Text style={{ color: theme.ink2, fontFamily: Type.display, fontSize: 16 }}>

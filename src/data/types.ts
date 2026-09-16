@@ -42,6 +42,8 @@ export type Idea = {
   /** Free-form bucket, typed as #tag inside the idea itself. */
   tag: string;
   starred: boolean;
+  /** Acted on or no longer needed; kept, dimmed, at the bottom of the list. */
+  done: boolean;
   createdAt: number;
   syncedAt: number;
 };

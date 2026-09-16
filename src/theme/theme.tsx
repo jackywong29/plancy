@@ -4,8 +4,8 @@
  * Screens never hardcode a colour; they take one from here, so Light, Dark and
  * all twelve accents stay consistent in one place.
  */
-import { createContext, use, useMemo, type ReactNode } from 'react';
-import { useColorScheme } from 'react-native';
+import { createContext, use, useLayoutEffect, useMemo, type ReactNode } from 'react';
+import { Appearance, useColorScheme } from 'react-native';
 
 import { accentFor, accentTextFor, inkOn, mix } from './palette';
 
@@ -88,6 +88,14 @@ export function ThemeProvider({
   accent: string;
   children: ReactNode;
 }) {
+  // Our colours are only half the screen: the tab bar, header buttons,
+  // keyboard, time wheel and alerts are drawn by iOS from the window's own
+  // light/dark setting. Overriding it keeps them matching when plancy's
+  // appearance differs from the phone's.
+  useLayoutEffect(() => {
+    Appearance.setColorScheme(appearance === 'system' ? 'unspecified' : appearance);
+  }, [appearance]);
+
   const system = useColorScheme();
   const scheme: Scheme = appearance === 'system' ? (system === 'dark' ? 'dark' : 'light') : appearance;
   const theme = useMemo(() => buildTheme(scheme, accent), [scheme, accent]);

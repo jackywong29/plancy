@@ -75,18 +75,23 @@ export default function TaskSheet() {
       <Stack.Screen
         options={{
           title: existing ? 'Edit task' : 'New task',
-          headerLeft: () => (
-            <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
-              <Text style={{ color: theme.accentText, fontSize: 17 }}>Cancel</Text>
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: !canSave }} onPress={save} disabled={!canSave} hitSlop={10}>
-              <Text style={{ color: canSave ? theme.accentText : theme.ink3, fontSize: 17, fontWeight: '600' }}>
-                {existing ? 'Save' : 'Add'}
-              </Text>
-            </Pressable>
-          ),
+          // Native bar buttons, so iOS draws their glass for the current
+          // appearance: close on the left, confirm on the right, as in iOS 26.
+          unstable_headerLeftItems: () => [
+            { type: 'button', label: 'Cancel', icon: { type: 'sfSymbol', name: 'xmark' }, onPress: () => router.back() },
+          ],
+          unstable_headerRightItems: () => [
+            {
+              type: 'button',
+              label: existing ? 'Save' : 'Add',
+              accessibilityLabel: existing ? 'Save task' : 'Add task',
+              icon: { type: 'sfSymbol', name: 'checkmark' },
+              variant: 'prominent',
+              tintColor: theme.accent,
+              disabled: !canSave,
+              onPress: save,
+            },
+          ],
         }}
       />
       <ScrollView
@@ -100,6 +105,7 @@ export default function TaskSheet() {
             onChangeText={setTitle}
             placeholder="What do you need to do?"
             placeholderTextColor={theme.ink3}
+            keyboardAppearance={theme.scheme}
             autoFocus={!existing}
             returnKeyType="done"
             onSubmitEditing={save}

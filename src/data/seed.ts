@@ -1,6 +1,7 @@
 /**
- * Sample rows, used only while developing so the simulator shows a real day
- * instead of empty screens. A real install starts empty.
+ * Sample rows, so a screen can be tried with a real-looking day instead of an
+ * empty one. Loaded automatically in development, and from Settings in test
+ * builds. A real install starts empty.
  */
 import { db, saveEntry, saveIdea, saveMoney, saveTask, uid } from './db';
 import type { MoneyKind, Repeat } from './types';
@@ -14,7 +15,11 @@ function iso(offset: number): string {
 export function seedIfEmpty(): void {
   const count = db.getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM tasks');
   if ((count?.n ?? 0) > 0) return;
+  seedSample();
+}
 
+/** Adds the sample rows alongside whatever is there. */
+export function seedSample(): void {
   const now = Date.now();
   const tasks: [number, string, string, Repeat, boolean][] = [
     [0, '07:00', 'Morning run', 'daily', true],
@@ -45,15 +50,16 @@ export function seedIfEmpty(): void {
     saveEntry({ id: uid(), date: iso(offset), body, mood: mood as never, updatedAt: now, syncedAt: now });
   }
 
-  const ideas: [string, string, boolean][] = [
-    ['Weekend market stall for handmade candles', 'business', true],
-    ['Learn to make kaya at home', 'food', false],
-    ['Photo book of the Penang trip, before the pictures disappear into the camera roll forever', 'home', false],
-    ['Offer booking reminders over WhatsApp for salons', 'business', true],
-    ['Cameron Highlands in December', 'travel', false],
+  const ideas: [string, string, boolean, boolean][] = [
+    ['Weekend market stall for handmade candles', 'business', true, false],
+    ['Learn to make kaya at home', 'food', false, false],
+    ['Photo book of the Penang trip, before the pictures disappear into the camera roll forever', 'home', false, false],
+    ['Offer booking reminders over WhatsApp for salons', 'business', true, false],
+    ['Cameron Highlands in December', 'travel', false, false],
+    ['Try the new ramen place in Bangsar', 'food', false, true],
   ];
-  ideas.forEach(([text, tag, starred], i) => {
-    saveIdea({ id: uid(), text, tag, starred, createdAt: now - i * 86400000, syncedAt: now });
+  ideas.forEach(([text, tag, starred, done], i) => {
+    saveIdea({ id: uid(), text, tag, starred, done, createdAt: now - i * 86400000, syncedAt: now });
   });
 
   const month = iso(0).slice(0, 7);

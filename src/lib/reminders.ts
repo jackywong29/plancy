@@ -5,15 +5,16 @@
  * calendar feed, in-tab banners) with one: iOS holds the alarms, so they fire
  * with the app closed and with no internet. iOS caps pending notifications at
  * 64 per app, so only the coming week is scheduled and topped up on each
- * change.
+ * change. The morning nudge (see nudges.ts) shares the budget.
  */
 import * as Notifications from 'expo-notifications';
 
 import type { Settings, Task } from '@/data/types';
 import { addDays, splitTime, todayIso } from '@/lib/format';
+import { NUDGE_DAYS, planNudges } from '@/lib/nudges';
 
 const HORIZON_DAYS = 7;
-const MAX_PENDING = 60;
+const MAX_PENDING = 60 - NUDGE_DAYS;
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -42,10 +43,20 @@ export function syncReminders(tasks: Task[], settings: Settings): Promise<void> 
 
 async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync();
-  if (!settings.remind) return;
+  if (!settings.remind && !settings.nudge) return;
   if (!(await ensurePermission())) return;
 
   const today = todayIso();
+  if (settings.nudge) {
+    for (const n of planNudges(tasks, settings, today)) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: n.id,
+        content: { title: n.title, body: n.body, data: { nudge: true } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at },
+      });
+    }
+  }
+  if (!settings.remind) return;
   const last = addDays(today, HORIZON_DAYS);
   const now = Date.now();
   const lead = settings.leadMinutes * 60_000;

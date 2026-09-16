@@ -140,4 +140,8 @@ export const settingsDefaults = (): Settings => ({
   leadMinutes: 10,
   lockEnabled: false,
   lockScope: 'private',
+  nudge: false,
+  nudgeHour: 8,
+  widgetStyle: 'progress',
+  calendar: 'week',
 });

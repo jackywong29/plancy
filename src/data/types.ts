@@ -87,4 +87,11 @@ export type Settings = {
   lockEnabled: boolean;
   /** Which parts Face ID protects. */
   lockScope: 'app' | 'private';
+  /** Morning nudge: opt-in, one notification a day at nudgeHour (0-23). */
+  nudge: boolean;
+  nudgeHour: number;
+  /** What the small home screen widget shows. */
+  widgetStyle: 'progress' | 'streak' | 'tasks';
+  /** Today's calendar: the week strip, or the whole month. Remembers the last choice. */
+  calendar: 'week' | 'month';
 };

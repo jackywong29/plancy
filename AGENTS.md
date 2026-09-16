@@ -62,13 +62,15 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
   the navigation ThemeProvider (_layout.tsx), and `keyboardAppearance` on
   every TextInput. Sheet buttons are native bar items, not React views.
 - Swipeable rows go through `SwipeRow` (src/components/swipe-row.tsx).
+- Widget code (`widgets/`) may only use `@expo/ui/swift-ui` and nothing
+  declared outside the component; all data comes in as props.
+- Notifications: 64 pending max on iOS. Reminders take up to 53, the nudge 7.
 
 ## Not built yet
 
-Face ID gate (expo-local-authentication), iCloud sync (native CloudKit
-module), widgets, streak celebration, onboarding, import from the web
-planner's export file, editing finance entries, a monthly cash flow chart in
-Finance, localisation of strings (all UI text is English inline for now).
+iCloud sync (native CloudKit module), interactive widgets, streak
+celebration, onboarding, import from the web planner's export file, editing
+finance entries, localisation of strings (all UI text is English inline for now).
 
 ## Built so far
 
@@ -76,4 +78,7 @@ Four tabs on real SQLite data; swipe to edit or delete tasks with undo; task
 sheet (native time wheel, day picker, repeat); repeat series for tasks and
 monthly bills (`src/data/repeats.ts`); reminders scheduled on the phone
 (`src/lib/reminders.ts`); journal search; finance add sheet; settings with
-appearance and the 12-colour palette.
+appearance, the 12-colour palette and a custom colour; Face ID lock
+(`src/lib/lock.tsx`); currency picker; month calendar on Today; morning nudge
+(`src/lib/nudges.ts`, opt-in); Finance cash-flow chart; home screen widget
+(`widgets/TodayWidget.tsx`, fed by `src/lib/widget.ts`).

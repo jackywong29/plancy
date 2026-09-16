@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BigTitle, Card, Empty, Icon, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
+import { Locked } from '@/lib/lock';
 import type { Mood } from '@/data/types';
 import { addDays, formatDayLong, formatDayShort, todayIso } from '@/lib/format';
 import { Space, Type, useTheme } from '@/theme/theme';
@@ -16,7 +17,7 @@ const MOODS: { key: Mood; label: string; size: number }[] = [
 ];
 
 export default function JournalScreen() {
-  const { journal, writeJournal } = useStore();
+  const { journal, writeJournal, settings } = useStore();
   const theme = useTheme();
   const today = todayIso();
   const [date, setDate] = useState(today);
@@ -43,155 +44,243 @@ export default function JournalScreen() {
   const found = needle ? past.filter((e) => e.body.toLowerCase().includes(needle)) : past;
 
   return (
-    <Screen>
-      <BigTitle subtitle={`${past.length} ${past.length === 1 ? 'entry' : 'entries'} so far`}>journal</BigTitle>
+    <Locked settings={settings} what="Journal">
+      <Screen>
+        <BigTitle subtitle={`${past.length} ${past.length === 1 ? 'entry' : 'entries'} so far`}>journal</BigTitle>
 
-      <Card style={styles.datePill}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Previous day"
-          onPress={() => setDate(addDays(date, -1))}
-          style={styles.arrow}>
-          <Icon name="chevron.left" size={20} color={theme.accentText} />
-        </Pressable>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ color: theme.ink, fontSize: Type.body, fontWeight: '600' }}>
-            {isToday ? 'Today' : formatDayShort(date)}
-          </Text>
-          <Text style={{ color: theme.ink2, fontSize: Type.caption }}>{formatDayLong(date)}</Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Next day"
-          disabled={isToday}
-          onPress={() => setDate(addDays(date, 1))}
-          style={styles.arrow}>
-          <Icon name="chevron.right" size={20} color={isToday ? theme.ink3 : theme.accentText} />
-        </Pressable>
-      </Card>
-
-      {/* One stray tap files an entry under the wrong day, so say it plainly. */}
-      {!isToday ? (
-        <View style={[styles.warn, { backgroundColor: theme.warnSoft }]}>
-          <Icon name="exclamationmark.triangle" size={18} color={theme.warn} />
-          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.footnote }}>
-            You are writing in {formatDayShort(date)}, not today.
-          </Text>
-          <Pressable accessibilityRole="button" onPress={() => setDate(today)}>
-            <Text style={{ color: theme.warn, fontWeight: '600', fontSize: Type.footnote }}>Back to today</Text>
+        <Card style={styles.datePill}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Previous day"
+            onPress={() => setDate(addDays(date, -1))}
+            style={styles.arrow}
+          >
+            <Icon name="chevron.left" size={20} color={theme.accentText} />
           </Pressable>
-        </View>
-      ) : null}
+          <View style={{ alignItems: 'center' }}>
+            <Text
+              style={{
+                color: theme.ink,
+                fontSize: Type.body,
+                fontWeight: '600',
+              }}
+            >
+              {isToday ? 'Today' : formatDayShort(date)}
+            </Text>
+            <Text style={{ color: theme.ink2, fontSize: Type.caption }}>{formatDayLong(date)}</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Next day"
+            disabled={isToday}
+            onPress={() => setDate(addDays(date, 1))}
+            style={styles.arrow}
+          >
+            <Icon name="chevron.right" size={20} color={isToday ? theme.ink3 : theme.accentText} />
+          </Pressable>
+        </Card>
 
-      <View style={styles.moods}>
-        {MOODS.map((m) => {
-          const selected = entry?.mood === m.key;
-          return (
-            <Pressable
-              key={m.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={m.label}
-              onPress={() => writeJournal(date, { mood: selected ? '' : m.key })}
-              style={[
-                styles.mood,
-                { backgroundColor: theme.card },
-                selected && { borderColor: theme.accent, borderWidth: 2 },
-              ]}>
-              <View
+        {/* One stray tap files an entry under the wrong day, so say it plainly. */}
+        {!isToday ? (
+          <View style={[styles.warn, { backgroundColor: theme.warnSoft }]}>
+            <Icon name="exclamationmark.triangle" size={18} color={theme.warn} />
+            <Text style={{ flex: 1, color: theme.ink, fontSize: Type.footnote }}>
+              You are writing in {formatDayShort(date)}, not today.
+            </Text>
+            <Pressable accessibilityRole="button" onPress={() => setDate(today)}>
+              <Text
                 style={{
-                  width: m.size,
-                  height: m.size,
-                  borderRadius: m.size / 2,
-                  backgroundColor: selected ? theme.accent : theme.ink3,
-                  opacity: selected ? 1 : 0.45,
+                  color: theme.warn,
+                  fontWeight: '600',
+                  fontSize: Type.footnote,
                 }}
-              />
-              <Text style={{ color: selected ? theme.ink : theme.ink2, fontSize: Type.caption, fontWeight: selected ? '600' : '500' }}>
-                {m.label}
+              >
+                Back to today
               </Text>
             </Pressable>
-          );
-        })}
-      </View>
+          </View>
+        ) : null}
 
-      <Card style={{ padding: Space.gutter }}>
-        <TextInput
-          value={body}
-          onChangeText={onChange}
-          onBlur={() => writeJournal(date, { body })}
-          multiline
-          textAlignVertical="top"
-          placeholder="How did the day go? What happened, what mattered, what is on your mind?"
-          placeholderTextColor={theme.ink3}
-          keyboardAppearance={theme.scheme}
-          accessibilityLabel="Journal entry"
-          style={{ color: theme.ink, fontSize: Type.sectionTitle, lineHeight: 25, minHeight: 200 }}
-        />
-        <View style={[styles.editorFoot, { borderTopColor: theme.line }]}>
-          <Text style={{ color: theme.ink2, fontSize: Type.caption }}>{words} words</Text>
-          <Text style={{ color: theme.ink2, fontSize: Type.caption }}>Saves as you type</Text>
-        </View>
-      </Card>
-
-      <SectionHead title="Past entries" trailing={needle ? `${found.length} of ${past.length}` : undefined} />
-      {past.length > 0 ? (
-        <View style={[styles.search, { backgroundColor: theme.card }]}>
-          <Icon name="magnifyingglass" size={16} color={theme.ink3} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search your journal"
-            placeholderTextColor={theme.ink3}
-            keyboardAppearance={theme.scheme}
-            clearButtonMode="while-editing"
-            returnKeyType="search"
-            accessibilityLabel="Search your journal"
-            style={{ flex: 1, color: theme.ink, fontSize: Type.body, paddingVertical: 9 }}
-          />
-        </View>
-      ) : null}
-      {past.length === 0 ? (
-        <Empty title="No entries yet" body="Write a line about today. Tomorrow it will be worth having." />
-      ) : found.length === 0 ? (
-        <Empty title="No entries match" body={`Nothing in your journal mentions "${query.trim()}".`} />
-      ) : (
-        <Card>
-          {found.map((e, i) => (
-            <Row key={e.id} first={i === 0} onPress={() => setDate(e.date)} accessibilityLabel={`Open ${formatDayLong(e.date)}`}>
-              <View style={{ width: 44, alignItems: 'center' }}>
-                <Text style={{ color: theme.ink, fontFamily: Type.display, fontSize: 22 }}>
-                  {Number(e.date.slice(8))}
-                </Text>
-                <Text style={{ color: theme.ink2, fontSize: 11 }}>{formatDayShort(e.date).split(' ')[0]}</Text>
-              </View>
-              <Text numberOfLines={2} style={{ flex: 1, color: theme.ink2, fontSize: Type.footnote }}>
-                {e.body}
-              </Text>
-              {e.mood ? (
+        <View style={styles.moods}>
+          {MOODS.map((m) => {
+            const selected = entry?.mood === m.key;
+            return (
+              <Pressable
+                key={m.key}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={m.label}
+                onPress={() => writeJournal(date, { mood: selected ? '' : m.key })}
+                style={[styles.mood, { backgroundColor: theme.card }, selected && { borderColor: theme.accent, borderWidth: 2 }]}
+              >
                 <View
                   style={{
-                    width: MOODS.find((m) => m.key === e.mood)?.size ?? 8,
-                    height: MOODS.find((m) => m.key === e.mood)?.size ?? 8,
-                    borderRadius: 8,
-                    backgroundColor: theme.accent,
+                    width: m.size,
+                    height: m.size,
+                    borderRadius: m.size / 2,
+                    backgroundColor: selected ? theme.accent : theme.ink3,
+                    opacity: selected ? 1 : 0.45,
                   }}
                 />
-              ) : null}
-            </Row>
-          ))}
+                <Text
+                  style={{
+                    color: selected ? theme.ink : theme.ink2,
+                    fontSize: Type.caption,
+                    fontWeight: selected ? '600' : '500',
+                  }}
+                >
+                  {m.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Card style={{ padding: Space.gutter }}>
+          <TextInput
+            value={body}
+            onChangeText={onChange}
+            onBlur={() => writeJournal(date, { body })}
+            multiline
+            textAlignVertical="top"
+            placeholder="How did the day go? What happened, what mattered, what is on your mind?"
+            placeholderTextColor={theme.ink3}
+            keyboardAppearance={theme.scheme}
+            accessibilityLabel="Journal entry"
+            style={{
+              color: theme.ink,
+              fontSize: Type.sectionTitle,
+              lineHeight: 25,
+              minHeight: 200,
+            }}
+          />
+          <View style={[styles.editorFoot, { borderTopColor: theme.line }]}>
+            <Text style={{ color: theme.ink2, fontSize: Type.caption }}>{words} words</Text>
+            <Text style={{ color: theme.ink2, fontSize: Type.caption }}>Saves as you type</Text>
+          </View>
         </Card>
-      )}
-    </Screen>
+
+        <SectionHead title="Past entries" trailing={needle ? `${found.length} of ${past.length}` : undefined} />
+        {past.length > 0 ? (
+          <View style={[styles.search, { backgroundColor: theme.card }]}>
+            <Icon name="magnifyingglass" size={16} color={theme.ink3} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search your journal"
+              placeholderTextColor={theme.ink3}
+              keyboardAppearance={theme.scheme}
+              clearButtonMode="while-editing"
+              returnKeyType="search"
+              accessibilityLabel="Search your journal"
+              style={{
+                flex: 1,
+                color: theme.ink,
+                fontSize: Type.body,
+                paddingVertical: 9,
+              }}
+            />
+          </View>
+        ) : null}
+        {past.length === 0 ? (
+          <Empty title="No entries yet" body="Write a line about today. Tomorrow it will be worth having." />
+        ) : found.length === 0 ? (
+          <Empty title="No entries match" body={`Nothing in your journal mentions "${query.trim()}".`} />
+        ) : (
+          <Card>
+            {found.map((e, i) => (
+              <Row
+                key={e.id}
+                first={i === 0}
+                onPress={() => setDate(e.date)}
+                accessibilityLabel={`Open ${formatDayLong(e.date)}`}
+              >
+                <View style={{ width: 44, alignItems: 'center' }}>
+                  <Text
+                    style={{
+                      color: theme.ink,
+                      fontFamily: Type.display,
+                      fontSize: 22,
+                    }}
+                  >
+                    {Number(e.date.slice(8))}
+                  </Text>
+                  <Text style={{ color: theme.ink2, fontSize: 11 }}>{formatDayShort(e.date).split(' ')[0]}</Text>
+                </View>
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    flex: 1,
+                    color: theme.ink2,
+                    fontSize: Type.footnote,
+                  }}
+                >
+                  {e.body}
+                </Text>
+                {e.mood ? (
+                  <View
+                    style={{
+                      width: MOODS.find((m) => m.key === e.mood)?.size ?? 8,
+                      height: MOODS.find((m) => m.key === e.mood)?.size ?? 8,
+                      borderRadius: 8,
+                      backgroundColor: theme.accent,
+                    }}
+                  />
+                ) : null}
+              </Row>
+            ))}
+          </Card>
+        )}
+      </Screen>
+    </Locked>
   );
 }
 
 const styles = StyleSheet.create({
-  search: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, marginBottom: 10 },
-  datePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 4, marginBottom: 10 },
-  arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  warn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, padding: 12, marginBottom: 10 },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  datePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 4,
+    marginBottom: 10,
+  },
+  arrow: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
   moods: { flexDirection: 'row', gap: 6, marginBottom: 10 },
-  mood: { flex: 1, borderRadius: 12, paddingVertical: 9, alignItems: 'center', gap: 5, borderWidth: 2, borderColor: 'transparent' },
-  editorFoot: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 8 },
+  mood: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 9,
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  editorFoot: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    marginTop: 8,
+  },
 });

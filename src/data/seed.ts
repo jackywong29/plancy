@@ -3,6 +3,8 @@
  * empty one. Loaded automatically in development, and from Settings in test
  * builds. A real install starts empty.
  */
+import { addMonths } from '@/lib/format';
+
 import { db, saveEntry, saveIdea, saveMoney, saveTask, uid } from './db';
 import type { MoneyKind, Repeat } from './types';
 
@@ -77,20 +79,31 @@ export function seedSample(): void {
     ['bill', 'Phone', 8800, 20, false],
     ['bill', 'Car insurance', 31000, 28, false],
   ];
-  money.forEach(([kind, label, amountMinor, dueDay, paid], i) => {
-    const id = uid();
-    saveMoney({
-      id,
-      seriesId: id,
-      month,
-      kind,
-      label,
-      amountMinor,
-      dueDay,
-      paid,
-      repeatMonthly: kind === 'bill',
-      createdAt: now + i,
-      syncedAt: now,
+  // This month in full, and four earlier months with the totals nudged about
+  // so the cash flow chart has a shape.
+  // A recurring bill keeps one seriesId across months, or the roll-forward
+  // would copy every past month's version into this one.
+  const billSeries = new Map<string, string>();
+  for (let back = 4; back >= 0; back -= 1) {
+    const m = addMonths(month, -back);
+    const drift = back === 0 ? 1 : 0.8 + ((back * 37) % 50) / 100;
+    money.forEach(([kind, label, amountMinor, dueDay, paid], i) => {
+      const id = uid();
+      const seriesId = kind === 'bill' ? (billSeries.get(label) ?? (billSeries.set(label, id), id)) : id;
+      const scaled = kind === 'income' || kind === 'bill' ? amountMinor : Math.round(amountMinor * drift);
+      saveMoney({
+        id,
+        seriesId,
+        month: m,
+        kind,
+        label,
+        amountMinor: scaled,
+        dueDay,
+        paid: back > 0 ? true : paid,
+        repeatMonthly: kind === 'bill',
+        createdAt: now + i - back * 1000,
+        syncedAt: now,
+      });
     });
-  });
+  }
 }

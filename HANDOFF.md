@@ -105,7 +105,14 @@ src/app/(tabs)/index.tsx   Today: week strip, progress dots, streak, task list
 src/app/(tabs)/journal.tsx Journal: day nav, moods, autosave, past entries + search
 src/app/(tabs)/ideas.tsx   Ideas: capture with #tag, filter chips, star
 src/app/(tabs)/finance.tsx Finance: left-this-month, split bar, bills first
-src/app/settings.tsx       appearance, palette, region, reminders, privacy
+src/app/settings.tsx       appearance, palette + custom colour, region, reminders, nudge, widget, privacy, testing
+src/app/currency.tsx       currency list with search (Settings → Currency)
+src/components/calendar.tsx week strip / month grid on Today, with the toggle chevron
+src/components/cashflow.tsx six-month in/out bars on Finance
+src/lib/lock.tsx           Face ID: LockProvider (re-locks on background) + Locked cover
+src/lib/nudges.ts          morning nudge copy, planned a week ahead (opt-in)
+src/lib/widget.ts          feeds widgets/TodayWidget.tsx a 4-day timeline
+widgets/TodayWidget.tsx    the home screen widget (small + medium), Expo UI only
 src/app/task.tsx           new/edit task sheet (native time wheel via Expo UI)
 src/app/money.tsx          new finance entry sheet
 src/components/ui.tsx      Screen, BigTitle, Card, Row, Tick, Chip, Empty, RoundButton, Icon
@@ -165,6 +172,15 @@ Ideas: tick to mark done (sinks to the bottom, "Done" filter), swipe to delete
 with Undo. Undo toast is Liquid Glass. Dark mode fixed across native pieces
 (16 Sep, from Jacky's first test on his iPhone).
 
+Also 16 Sep: Face ID lock (whole app or Journal+Finance; passcode fallback);
+currency picker; custom accent via the system colour picker (any hex; the
+contrast maths copes); Today's calendar expands to a month with arrows; the
+morning nudge (opt-in, Settings, hour 6–10; Mondays add last week's tally,
+the 1st adds last month's; shares the 64-notification budget: 53 reminders +
+7 nudges); Finance cash-flow chart (last 6 months, in vs out, tap a month);
+home screen widget "Today" in small + medium, style chosen in Settings →
+Widget (Progress / Streak / Tasks), fed by `syncWidget` on every change.
+
 ## Next, in this order
 
 1. **iCloud sync** — Jacky agreed (16 Sep) it waits until the Apple
@@ -176,20 +192,21 @@ with Undo. Undo toast is Liquid Glass. Dark mode fixed across native pieces
    small Swift module using CloudKit's `CKSyncEngine` over the existing
    `syncedAt` + tombstones. If it isn't solid, v1 ships on-device only (still
    in the iPhone's iCloud backup) and sync moves to v1.1, keeping the date.
-2. Face ID lock (`expo-local-authentication`, whole app or Journal+Finance).
-3. Widgets (`expo-widgets`): today's tasks, tickable via App Intents.
-4. Streak celebration: the dot drops into "today, done." Must honour Reduce
+2. Widgets, next step: tick a task from the widget (interactive, App Intents)
+   and a Lock Screen size. Test on the phone that App Groups work with the
+   free team (the simulator build is the first check).
+3. Streak celebration: the dot drops into "today, done." Must honour Reduce
    Motion.
-5. Onboarding, 2–3 screens, including import from the web planner's export
-   JSON.
-6. Editing finance entries; month navigation beyond the current month.
-7. Move UI text out of the code for translation (structure now, translate later).
-8. Finance: monthly cash flow as a chart and stats (Jacky's idea, marked as a
-   future feature): income vs spending over recent months, where money went.
+4. Onboarding, 2–3 screens, including import from the web planner's export
+   JSON. Ask for notifications there and offer the morning nudge (it must stay
+   opt-in: App Review 4.5.4 treats habit nudges as marketing).
+5. Editing finance entries.
+6. Move UI text out of the code for translation (structure now, translate later).
 
 ## Open questions for Jacky
 
 - Confirm undo-instead-of-confirm on delete.
+- Morning nudge starts off (App Review rule). Fine, or surface it in onboarding?
 - Which curated colours stay in the palette of 12.
 - EU countries at launch or later.
 - Price promo: flat $4.99, or $2.99 for the first two weeks?

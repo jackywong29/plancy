@@ -1,9 +1,12 @@
+import { ColorPicker, Host } from '@expo/ui/swift-ui';
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Card, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Settings } from '@/data/types';
+import { splitTime } from '@/lib/format';
 import { PALETTE } from '@/theme/palette';
 import { Space, Type, useTheme } from '@/theme/theme';
 
@@ -14,6 +17,17 @@ import { Space, Type, useTheme } from '@/theme/theme';
  */
 const TEST_TOOLS = __DEV__ || Constants.expoConfig?.extra?.testTools === true;
 
+function nudgeLabel(hour: number, hour12: boolean): string {
+  const { time, suffix } = splitTime(`${String(hour).padStart(2, '0')}:00`, hour12);
+  return `${time} ${suffix}`.trim();
+}
+
+const WIDGET_STYLES: { value: Settings['widgetStyle']; label: string }[] = [
+  { value: 'progress', label: 'Progress' },
+  { value: 'streak', label: 'Streak' },
+  { value: 'tasks', label: 'Tasks' },
+];
+
 const APPEARANCES: { value: Settings['appearance']; label: string }[] = [
   { value: 'system', label: 'System' },
   { value: 'light', label: 'Light' },
@@ -23,6 +37,8 @@ const APPEARANCES: { value: Settings['appearance']; label: string }[] = [
 export default function SettingsScreen() {
   const { settings, setSetting, resetData } = useStore();
   const theme = useTheme();
+  const router = useRouter();
+  const custom = !PALETTE.some((s) => s.hex === settings.accent);
 
   return (
     <Screen bottomInset={40}>
@@ -66,16 +82,29 @@ export default function SettingsScreen() {
             />
           );
         })}
+        {/* Any colour at all, through the system picker. The contrast maths in
+            palette.ts keeps text readable whatever is chosen. */}
+        <View
+          accessibilityLabel={custom ? `Custom colour ${settings.accent}, selected` : 'Custom colour'}
+          style={[styles.swatch, styles.customSwatch, { borderColor: custom ? theme.ink : theme.line, backgroundColor: theme.fill }]}>
+          <Host style={styles.customHost}>
+            <ColorPicker
+              selection={settings.accent}
+              supportsOpacity={false}
+              onSelectionChange={(hex) => setSetting('accent', hex.slice(0, 7).toUpperCase())}
+            />
+          </Host>
+        </View>
       </Card>
       <Text style={[styles.footnote, { color: theme.ink2 }]}>
-        Used for ticks, the selected day, progress dots and buttons.
+        Used for ticks, the selected day, progress dots and buttons. The last circle opens a picker for any colour.
       </Text>
 
       <SectionHead title="Region" />
       <Card>
-        <Row first>
+        <Row first onPress={() => router.push('/currency')} accessibilityLabel={`Currency, ${settings.currency}, tap to change`}>
           <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Currency</Text>
-          <Text style={{ color: theme.ink2, fontSize: Type.body }}>{settings.currency}</Text>
+          <Text style={{ color: theme.accentText, fontSize: Type.body }}>{settings.currency}</Text>
         </Row>
         <Row>
           <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Week starts on</Text>
@@ -128,6 +157,61 @@ export default function SettingsScreen() {
       </Card>
       <Text style={[styles.footnote, { color: theme.ink2 }]}>
         Reminders are scheduled on this iPhone, so they arrive with no internet.
+      </Text>
+
+      <SectionHead title="Morning nudge" />
+      <Card>
+        <Row first>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.ink, fontSize: Type.body }}>Morning nudge</Text>
+            <Text style={{ color: theme.ink2, fontSize: Type.footnote }}>Today's plan and your streak, once a day</Text>
+          </View>
+          <Switch
+            value={settings.nudge}
+            onValueChange={(on) => setSetting('nudge', on)}
+            trackColor={{ true: theme.accent }}
+            accessibilityLabel="Morning nudge"
+          />
+        </Row>
+        {settings.nudge ? (
+          <Row>
+            <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>At</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${nudgeLabel(settings.nudgeHour, settings.hour12)}, tap to change`}
+              onPress={() => {
+                const hours = [6, 7, 8, 9, 10];
+                setSetting('nudgeHour', hours[(hours.indexOf(settings.nudgeHour) + 1) % hours.length]);
+              }}>
+              <Text style={{ color: theme.accentText, fontSize: Type.body }}>{nudgeLabel(settings.nudgeHour, settings.hour12)}</Text>
+            </Pressable>
+          </Row>
+        ) : null}
+      </Card>
+      <Text style={[styles.footnote, { color: theme.ink2 }]}>
+        Mondays add last week's tally, the 1st adds last month's. Turn it off here any time.
+      </Text>
+
+      <SectionHead title="Widget" />
+      <Card style={{ padding: 12 }}>
+        <View style={[styles.segment, { backgroundColor: theme.fill }]}>
+          {WIDGET_STYLES.map((w) => {
+            const selected = settings.widgetStyle === w.value;
+            return (
+              <Pressable
+                key={w.value}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                onPress={() => setSetting('widgetStyle', w.value)}
+                style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
+                <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>{w.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Card>
+      <Text style={[styles.footnote, { color: theme.ink2 }]}>
+        What the small widget shows. The wider one adds your next tasks beside it. Add it from the home screen: hold down, tap +, search plancy.
       </Text>
 
       <SectionHead title="Privacy" />
@@ -206,6 +290,8 @@ const styles = StyleSheet.create({
   segmentItem: { flex: 1, paddingVertical: 7, borderRadius: 7, alignItems: 'center' },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, padding: Space.gutter },
   swatch: { width: 44, height: 44, borderRadius: 22 },
+  customSwatch: { borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  customHost: { width: 44, height: 44 },
   footnote: { fontSize: Type.footnote, marginTop: 7, marginHorizontal: Space.gutter },
   about: { alignItems: 'center', gap: 4, marginTop: 28 },
 });

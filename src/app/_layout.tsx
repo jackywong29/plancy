@@ -5,7 +5,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ToastProvider } from '@/components/toast';
 import { StoreProvider, useStore } from '@/data/store';
+import { Locked, LockProvider } from '@/lib/lock';
 import { syncReminders } from '@/lib/reminders';
+import { syncWidget } from '@/lib/widget';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 
 export default function RootLayout() {
@@ -25,13 +27,18 @@ function Themed() {
   // Any change to tasks or reminder settings re-plans the week's alarms.
   useEffect(() => {
     void syncReminders(tasks, settings);
+    syncWidget(tasks, settings);
   }, [tasks, settings]);
 
   return (
     <ThemeProvider appearance={settings.appearance} accent={settings.accent}>
-      <ToastProvider>
-        <Shell />
-      </ToastProvider>
+      <LockProvider settings={settings}>
+        <ToastProvider>
+          <Locked settings={settings} what="plancy" always>
+            <Shell />
+          </Locked>
+        </ToastProvider>
+      </LockProvider>
     </ThemeProvider>
   );
 }
@@ -68,6 +75,7 @@ function Shell() {
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="currency" options={{ title: 'Currency' }} />
         <Stack.Screen name="money" options={{ presentation: 'modal', headerShadowVisible: false }} />
         <Stack.Screen
           name="task"

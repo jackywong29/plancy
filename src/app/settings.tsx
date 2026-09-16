@@ -1,14 +1,17 @@
 import { ColorPicker, Host } from '@expo/ui/swift-ui';
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { useToast } from '@/components/toast';
 import { Card, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { splitTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { useLock } from '@/lib/lock';
+import { previewNudge } from '@/lib/reminders';
 import { PALETTE } from '@/theme/palette';
 import { Space, Type, useTheme } from '@/theme/theme';
 
@@ -42,10 +45,28 @@ const APPEARANCES: { value: Settings['appearance']; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { settings, setSetting, resetData } = useStore();
+  const { settings, setSetting, resetData, tasks } = useStore();
+  const toast = useToast();
+  const params = useLocalSearchParams<{ preview?: string }>();
   const theme = useTheme();
   const router = useRouter();
   const lock = useLock();
+
+  async function sendPreview() {
+    haptic('select');
+    const ok = await previewNudge(tasks, settings);
+    if (ok) toast('Your nudge arrives in 5 seconds. Lock your phone to see it.');
+    else toast('Notifications are off for plancy in iPhone Settings.');
+  }
+
+  // Test builds: plancy://settings?preview=nudge-<anything> sends one in 3
+  // seconds. Each distinct value sends once, so a test can repeat it.
+  const previewed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!TEST_TOOLS || !params.preview?.startsWith('nudge') || previewed.current === params.preview) return;
+    previewed.current = params.preview;
+    void previewNudge(tasks, settings, 3);
+  }, [params.preview, tasks, settings]);
   const custom = !PALETTE.some((s) => s.hex === settings.accent);
 
   return (
@@ -204,6 +225,11 @@ export default function SettingsScreen() {
               }}>
               <Text style={{ color: theme.accentText, fontSize: Type.body }}>{nudgeLabel(settings.nudgeHour, settings.hour12)}</Text>
             </Pressable>
+          </Row>
+        ) : null}
+        {settings.nudge ? (
+          <Row onPress={() => void sendPreview()} accessibilityLabel="Send a preview of the morning nudge">
+            <Text style={{ flex: 1, color: theme.accentText, fontSize: Type.body }}>Send a preview</Text>
           </Row>
         ) : null}
       </Card>

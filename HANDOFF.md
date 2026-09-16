@@ -71,6 +71,17 @@ xcrun simctl openurl booted "plancy://journal"        # or today, ideas, finance
 xcrun simctl io booted screenshot shot.png
 ```
 
+**Things that looked like our bugs but were iOS rules (16 Sep, round 3):**
+- *Widget blank white, tap opens `plancy://documentation/widgetkit/...`:* iOS
+  17+ replaces a widget that doesn't call `containerBackground` with Apple's
+  "adopt containerBackground" card. The root view now sets it.
+- *Journal/Finance content under the status bar after unlocking:* native tabs
+  give their top inset to the first scroll view found when the tab mounts.
+  PrivateLock now overlays a mounted tab instead of replacing it.
+- *No haptics at all:* expo-haptics builds window-less UIFeedbackGenerators,
+  which play nothing in an iOS 27 scene-lifecycle app. `modules/plancy-haptics`
+  uses Core Haptics (falls back to generators tied to the key window).
+
 **Widget debugging.** A release build renders a widget layout that throws as
 an *empty white tile* (the red error box is debug-only), and iOS passes no
 props for the gallery preview and placeholder. Test a layout offline: take the
@@ -128,7 +139,8 @@ src/app/currency.tsx       currency list with search (Settings → Currency)
 src/components/calendar.tsx week strip / month grid on Today, with the toggle chevron
 src/components/cashflow.tsx six-month in/out bars on Finance
 src/lib/lock.tsx           Face ID: LockProvider (rules in the header), AppLock, PrivateLock, privacy cover
-src/lib/haptics.ts         haptic vocabulary: haptic('tick' | 'dayDone' | 'milestone' ...), Settings toggle
+src/lib/haptics.ts         haptic vocabulary: event -> Core Haptics pattern (timed to animations), Settings toggle
+modules/plancy-haptics/    local Expo module (Swift, CHHapticEngine) that plays those patterns
 src/lib/celebrate.ts       which moment a tick earned: day / spotless month / streak milestone
 src/components/celebration.tsx  dot burst + milestone card (CelebrationProvider at the root)
 src/lib/nudges.ts          morning nudge copy, planned a week ahead (opt-in)
@@ -201,6 +213,16 @@ the 1st adds last month's; shares the 64-notification budget: 53 reminders +
 7 nudges); Finance cash-flow chart (last 6 months, in vs out, tap a month);
 home screen widget "Today" in small + medium, style chosen in Settings →
 Widget (Progress / Streak / Tasks), fed by `syncWidget` on every change.
+
+Round 3 (16 Sep): the three fixes above; lock cover lifts away while the tab
+settles in; haptics as timed Core Haptics patterns; morning nudge with its own
+chime (assets/sounds/plancy-morning.wav, synthesised), context headline,
+first three tasks, "See my day" / "Add a task" buttons, and Settings → Send a
+preview (`plancy://settings?preview=nudge` in test builds); launch screen is
+a plain page in plancy's light/dark ground and dissolves into the first frame
+(no Expo logo); unknown links redirect to Today. App icon: four directions
+shown to Jacky (A "p.", B the dot, C tick, D progress dots); still the Expo
+template icon until he picks.
 
 Also 16 Sep, second round from Jacky's phone test: Face ID reworked (scope
 changes apply at once, one unlock per session, relock on background, privacy

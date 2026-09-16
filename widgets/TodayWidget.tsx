@@ -6,6 +6,10 @@
  * only use @expo/ui/swift-ui pieces and cannot reach anything outside the
  * function, which is why the layout is spelled out in full.
  *
+ * It must declare its background with containerBackground. Without one, iOS
+ * replaces the whole widget with a blank "adopt containerBackground" card
+ * whose tap opens a documentation link; that was the white tile.
+ *
  * It must never throw. iOS draws a placeholder with no props at all (in the
  * widget gallery, and before plancy has run once), and in a release build a
  * layout that throws renders as an empty white tile. So every prop has a
@@ -18,7 +22,17 @@
  * The medium size always adds the next tasks on the right.
  */
 import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
-import { font, foregroundColor, frame, lineLimit, minimumScaleFactor, opacity, padding, widgetURL } from '@expo/ui/swift-ui/modifiers';
+import {
+  containerBackground,
+  font,
+  foregroundColor,
+  frame,
+  lineLimit,
+  minimumScaleFactor,
+  opacity,
+  padding,
+  widgetURL,
+} from '@expo/ui/swift-ui/modifiers';
 import { createWidget, type WidgetEnvironment } from 'expo-widgets';
 
 export type TodayWidgetProps = {
@@ -45,6 +59,8 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
   const style = p.style === 'streak' || p.style === 'tasks' ? p.style : 'progress';
   const medium = environment?.widgetFamily === 'systemMedium';
   const rows = next.slice(0, medium ? 3 : 4);
+  // plancy's own card colours, so the widget looks like a piece of the app.
+  const background = containerBackground(environment?.colorScheme === 'dark' ? '#1E1D21' : '#FFFFFF', 'widget');
 
   const wordmark = (
     <HStack spacing={0}>
@@ -57,7 +73,7 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
 
   if (!hasData) {
     return (
-      <VStack alignment="leading" spacing={6} modifiers={[widgetURL('plancy://')]}>
+      <VStack alignment="leading" spacing={6} modifiers={[widgetURL('plancy://'), background]}>
         {wordmark}
         <Spacer minLength={0} />
         <Image systemName="checklist" size={26} color={accent} />
@@ -124,7 +140,7 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
   const main = style === 'streak' ? streak : style === 'tasks' && !medium ? tasks : progress;
 
   return (
-    <VStack alignment="leading" spacing={8} modifiers={[widgetURL('plancy://')]}>
+    <VStack alignment="leading" spacing={8} modifiers={[widgetURL('plancy://'), background]}>
       {wordmark}
       <Spacer minLength={0} />
       {medium ? (

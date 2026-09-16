@@ -29,7 +29,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Alert, AppState, Pressable, StyleSheet, Text, View, type AppStateStatus } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, Keyframe, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { Icon } from '@/components/ui';
 import type { Settings } from '@/data/types';
@@ -76,6 +76,10 @@ export function LockProvider({
   const [episode, setEpisode] = useState(0);
   const [method, setMethod] = useState('Face ID');
   const authenticating = useRef(false);
+  // Face ID's own sheet makes plancy briefly inactive. That must not bring up
+  // the app-switcher cover, including the moment after Face ID succeeds and
+  // before plancy is active again.
+  const inactiveForAuth = useRef(false);
 
   useEffect(() => {
     void LocalAuthentication.supportedAuthenticationTypesAsync().then((types) => {
@@ -94,6 +98,8 @@ export function LockProvider({
   useEffect(() => {
     let last = AppState.currentState;
     const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'inactive' && authenticating.current) inactiveForAuth.current = true;
+      if (next !== 'inactive') inactiveForAuth.current = false;
       if (next === 'background') relock();
       if (next === 'active' && last === 'background') setResumes((n) => n + 1);
       last = next;
@@ -177,7 +183,7 @@ export function LockProvider({
 
   // Hide the contents in the app switcher. Not while Face ID itself is on
   // screen, which also makes the app briefly inactive.
-  const hide = enabled && state !== 'active' && !authenticating.current;
+  const hide = enabled && state !== 'active' && !authenticating.current && !inactiveForAuth.current;
 
   return (
     <LockContext value={value}>
@@ -215,30 +221,56 @@ export function AppLock({ children }: { children: ReactNode }) {
   );
 }
 
-/** Covers one private tab (Journal, Finance) while it is locked. */
+/**
+ * Covers one private tab (Journal, Finance) while it is locked.
+ *
+ * The tab stays mounted underneath the cover. The native tab bar gives its
+ * top spacing to the first scroll view it finds when the tab loads, so if the
+ * lock screen were drawn instead, the tab would come up under the status bar
+ * once unlocked. Hidden from VoiceOver while covered. On unlock the cover
+ * fades up and away while the tab settles in from a hair smaller.
+ */
 export function PrivateLock({ title, children }: { title: string; children: ReactNode }) {
   const lock = useLock();
-
-  // Ask when the tab comes into view, and when plancy returns to it.
   const { privateLocked, active, resumes, unlock } = lock;
+  const reveal = useSharedValue(privateLocked ? 0 : 1);
+
   useFocusEffect(
     useCallback(() => {
       if (privateLocked && active) void unlock();
     }, [privateLocked, active, resumes, unlock]),
   );
 
-  if (!lock.privateLocked) return <>{children}</>;
-  return <LockScreen title={title} message={`${title[0].toUpperCase()}${title.slice(1)} is locked`} />;
+  useEffect(() => {
+    reveal.value = privateLocked ? 0 : withTiming(1, { duration: 320, easing: Easing.out(Easing.cubic) });
+  }, [privateLocked, reveal]);
+
+  const settle = useAnimatedStyle(() => ({
+    opacity: 0.4 + 0.6 * reveal.value,
+    transform: [{ scale: 0.97 + 0.03 * reveal.value }],
+  }));
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Animated.View
+        style={[{ flex: 1 }, settle]}
+        accessibilityElementsHidden={privateLocked}
+        importantForAccessibility={privateLocked ? 'no-hide-descendants' : 'auto'}>
+        {children}
+      </Animated.View>
+      {privateLocked ? <LockScreen title={title} message={`${title[0].toUpperCase()}${title.slice(1)} is locked`} full /> : null}
+    </View>
+  );
 }
 
-function LockScreen({ title, message, full }: { title: string; message: string; full?: boolean }) {
+function LockScreen({ title, message }: { title: string; message: string; full?: boolean }) {
   const theme = useTheme();
   const lock = useLock();
   return (
     <Animated.View
       entering={FadeIn.duration(180)}
-      exiting={FadeOut.duration(220)}
-      style={[full ? StyleSheet.absoluteFill : styles.inline, styles.cover, { backgroundColor: theme.ground }]}>
+      exiting={LIFT_AWAY}
+      style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: theme.ground }]}>
       <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>
         <Icon name="lock.fill" size={30} color={theme.accentText} weight="semibold" />
       </View>
@@ -259,6 +291,12 @@ function LockScreen({ title, message, full }: { title: string; message: string; 
   );
 }
 
+/** The cover's exit: a slight lift and fade, as the content underneath settles. */
+const LIFT_AWAY = new Keyframe({
+  0: { opacity: 1, transform: [{ scale: 1 }] },
+  100: { opacity: 0, transform: [{ scale: 1.04 }], easing: Easing.out(Easing.cubic) },
+}).duration(300);
+
 /** What the app switcher shows while the lock is on. */
 function PrivacyCover() {
   const theme = useTheme();
@@ -273,7 +311,6 @@ function PrivacyCover() {
 
 const styles = StyleSheet.create({
   cover: { alignItems: 'center', justifyContent: 'center', padding: 32, zIndex: 10 },
-  inline: { flex: 1 },
   badge: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
   button: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 28, minHeight: 50, paddingHorizontal: 24, borderRadius: 25 },
 });

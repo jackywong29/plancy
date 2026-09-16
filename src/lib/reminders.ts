@@ -11,7 +11,7 @@ import * as Notifications from 'expo-notifications';
 
 import type { Settings, Task } from '@/data/types';
 import { addDays, splitTime, todayIso } from '@/lib/format';
-import { NUDGE_DAYS, planNudges } from '@/lib/nudges';
+import { composeNudge, ensureNudgeActions, NUDGE_DAYS, nudgeContent, planNudges } from '@/lib/nudges';
 
 const HORIZON_DAYS = 7;
 const MAX_PENDING = 60 - NUDGE_DAYS;
@@ -41,17 +41,24 @@ export function syncReminders(tasks: Task[], settings: Settings): Promise<void> 
   return pending;
 }
 
+const PREVIEW_ID = 'nudge-preview';
+
 async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  // Everything plancy planned goes, except a preview that is about to arrive.
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const n of scheduled) {
+    if (n.identifier !== PREVIEW_ID) await Notifications.cancelScheduledNotificationAsync(n.identifier);
+  }
   if (!settings.remind && !settings.nudge) return;
   if (!(await ensurePermission())) return;
 
   const today = todayIso();
   if (settings.nudge) {
+    await ensureNudgeActions();
     for (const n of planNudges(tasks, settings, today)) {
       await Notifications.scheduleNotificationAsync({
         identifier: n.id,
-        content: { title: n.title, body: n.body, data: { nudge: true } },
+        content: nudgeContent(n, n.id.slice('nudge-'.length)),
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at },
       });
     }
@@ -86,4 +93,22 @@ function whenEpoch(task: Task): number {
   const [y, m, d] = task.date.split('-').map(Number);
   const [hh, mm] = task.time.split(':').map(Number);
   return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
+}
+
+/**
+ * Sends today's morning nudge a few seconds from now, so it can be seen and
+ * heard without waiting for tomorrow. Leave plancy (or lock the phone) to see
+ * it as it will really arrive.
+ */
+export async function previewNudge(tasks: Task[], settings: Settings, inSeconds = 5): Promise<boolean> {
+  if (!(await ensurePermission())) return false;
+  await ensureNudgeActions();
+  const today = todayIso();
+  await Notifications.cancelScheduledNotificationAsync(PREVIEW_ID).catch(() => undefined);
+  await Notifications.scheduleNotificationAsync({
+    identifier: PREVIEW_ID,
+    content: nudgeContent(composeNudge(tasks, settings, today), today),
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: inSeconds },
+  });
+  return true;
 }

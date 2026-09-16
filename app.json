@@ -25,15 +25,26 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#1E1D21",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "backgroundColor": "#F2F1F5",
+          "image": "./assets/images/splash-blank.png",
+          "imageWidth": 1,
+          "dark": {
+            "backgroundColor": "#111013",
+            "image": "./assets/images/splash-blank.png"
+          }
         }
       ],
       "expo-sqlite",
       "expo-localization",
       "expo-local-authentication",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/plancy-morning.wav"
+          ]
+        }
+      ],
       [
         "expo-widgets",
         {

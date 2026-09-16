@@ -17,9 +17,9 @@ import { syncWidget } from '@/lib/widget';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 
 // Keep the launch screen up until plancy has drawn its first frame in the
-// person's own colours, then dissolve into it. The launch screen itself is a
-// plain page in plancy's light or dark background (app.json), so the dissolve
-// is between two nearly identical pages rather than a logo and an app.
+// person's own colours, then dissolve into it. The launch screen (app.json)
+// is the plancy mark on plancy's own light or dark background, so the
+// dissolve goes from mark to app on the same ground.
 void SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 350, fade: true });
 

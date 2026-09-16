@@ -219,8 +219,11 @@ settles in; haptics as timed Core Haptics patterns; morning nudge with its own
 chime (assets/sounds/plancy-morning.wav, synthesised), context headline,
 first three tasks, "See my day" / "Add a task" buttons, and Settings → Send a
 preview (`plancy://settings?preview=nudge` in test builds); launch screen is
-a plain page in plancy's light/dark ground and dissolves into the first frame
-(no Expo logo); unknown links redirect to Today. App icon: Jacky chose 4e, the
+the plancy mark (`assets/icon/launch-{light,dark}.png`) on plancy's light/dark
+ground and dissolves into the first frame; every Expo/React template image is
+deleted; `ios.buildNumber` is bumped whenever the icon changes, because iOS
+keeps showing a cached icon (Spotlight especially) until the build number
+changes; unknown links redirect to Today. App icon: Jacky chose 4e, the
 all-accent p with a tick cut out of its bowl on a violet-washed ground
 (`assets/icon/plancy-{light,dark,tinted}.png`, drawn by
 `scripts/draw-icon.swift`; the Expo template icon is gone). The icon is

@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   time TEXT NOT NULL,
   title TEXT NOT NULL,
   repeat TEXT NOT NULL DEFAULT '',
+  seriesId TEXT NOT NULL DEFAULT '',
   done INTEGER NOT NULL DEFAULT 0,
   createdAt INTEGER NOT NULL,
   syncedAt INTEGER NOT NULL
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS money (
   dueDay INTEGER,
   paid INTEGER NOT NULL DEFAULT 0,
   repeatMonthly INTEGER NOT NULL DEFAULT 0,
+  seriesId TEXT NOT NULL DEFAULT '',
   createdAt INTEGER NOT NULL,
   syncedAt INTEGER NOT NULL
 );
@@ -72,6 +74,11 @@ CREATE TABLE IF NOT EXISTS settings (
 export function migrate(): void {
   db.execSync('PRAGMA journal_mode = WAL;');
   db.execSync(SCHEMA);
+  // Columns added after the first build. SQLite has no ADD COLUMN IF NOT EXISTS.
+  for (const table of ['tasks', 'money']) {
+    const cols = db.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
+    if (!cols.includes('seriesId')) db.execSync(`ALTER TABLE ${table} ADD COLUMN seriesId TEXT NOT NULL DEFAULT ''`);
+  }
 }
 
 export function uid(): string {
@@ -88,6 +95,7 @@ const asTask = (r: Row): Task => ({
   time: String(r.time),
   title: String(r.title),
   repeat: String(r.repeat) as Task['repeat'],
+  seriesId: String(r.seriesId ?? '') || String(r.id),
   done: Number(r.done) === 1,
   createdAt: Number(r.createdAt),
   syncedAt: Number(r.syncedAt),
@@ -120,6 +128,7 @@ const asMoney = (r: Row): MoneyEntry => ({
   dueDay: r.dueDay === null ? null : Number(r.dueDay),
   paid: Number(r.paid) === 1,
   repeatMonthly: Number(r.repeatMonthly) === 1,
+  seriesId: String(r.seriesId ?? '') || String(r.id),
   createdAt: Number(r.createdAt),
   syncedAt: Number(r.syncedAt),
 });
@@ -137,12 +146,12 @@ export function loadAll() {
 
 export function saveTask(t: Task): void {
   db.runSync(
-    `INSERT INTO tasks (id, date, time, title, repeat, done, createdAt, syncedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO tasks (id, date, time, title, repeat, seriesId, done, createdAt, syncedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
-       date = excluded.date, time = excluded.time, title = excluded.title,
-       repeat = excluded.repeat, done = excluded.done, syncedAt = excluded.syncedAt`,
-    [t.id, t.date, t.time, t.title, t.repeat, t.done ? 1 : 0, t.createdAt, t.syncedAt],
+       date = excluded.date, time = excluded.time, title = excluded.title, repeat = excluded.repeat,
+       seriesId = excluded.seriesId, done = excluded.done, syncedAt = excluded.syncedAt`,
+    [t.id, t.date, t.time, t.title, t.repeat, t.seriesId, t.done ? 1 : 0, t.createdAt, t.syncedAt],
   );
 }
 
@@ -170,13 +179,13 @@ export function saveIdea(i: Idea): void {
 
 export function saveMoney(m: MoneyEntry): void {
   db.runSync(
-    `INSERT INTO money (id, month, kind, label, amountMinor, dueDay, paid, repeatMonthly, createdAt, syncedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO money (id, month, kind, label, amountMinor, dueDay, paid, repeatMonthly, seriesId, createdAt, syncedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        month = excluded.month, kind = excluded.kind, label = excluded.label,
        amountMinor = excluded.amountMinor, dueDay = excluded.dueDay, paid = excluded.paid,
-       repeatMonthly = excluded.repeatMonthly, syncedAt = excluded.syncedAt`,
-    [m.id, m.month, m.kind, m.label, m.amountMinor, m.dueDay, m.paid ? 1 : 0, m.repeatMonthly ? 1 : 0, m.createdAt, m.syncedAt],
+       repeatMonthly = excluded.repeatMonthly, seriesId = excluded.seriesId, syncedAt = excluded.syncedAt`,
+    [m.id, m.month, m.kind, m.label, m.amountMinor, m.dueDay, m.paid ? 1 : 0, m.repeatMonthly ? 1 : 0, m.seriesId, m.createdAt, m.syncedAt],
   );
 }
 

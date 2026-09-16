@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { TaskRow } from '@/components/task-row';
@@ -10,12 +10,16 @@ import { addDays, formatDayLong, todayIso, weekOf, weekdayInitials } from '@/lib
 import { Space, Type, useTheme } from '@/theme/theme';
 
 export default function TodayScreen() {
-  const { tasks, settings, toggleTask, deleteTask, restoreTask } = useStore();
+  const { tasks, settings, toggleTask, deleteTask, restoreTask, ensureRepeats } = useStore();
   const theme = useTheme();
   const router = useRouter();
   const toast = useToast();
   const today = todayIso();
   const [day, setDay] = useState(today);
+
+  useEffect(() => {
+    ensureRepeats(addDays(day, 7));
+  }, [day, ensureRepeats]);
 
   const list = tasksForDay(tasks, day);
   const done = list.filter((t) => t.done).length;
@@ -36,12 +40,16 @@ export default function TodayScreen() {
 
   return (
     <Screen>
-      <View style={styles.topbar}>
-        <RoundButton icon="gearshape" label="Settings" onPress={() => router.push('/settings')} />
-        <RoundButton icon="plus" label="Add task" accent onPress={() => router.push({ pathname: '/task', params: { date: day } })} />
-      </View>
-
-      <BigTitle subtitle={formatDayLong(day)}>{title}</BigTitle>
+      <BigTitle
+        subtitle={formatDayLong(day)}
+        actions={
+          <>
+            <RoundButton icon="gearshape" label="Settings" onPress={() => router.push('/settings')} />
+            <RoundButton icon="plus" label="Add task" accent onPress={() => router.push({ pathname: '/task', params: { date: day } })} />
+          </>
+        }>
+        {title}
+      </BigTitle>
 
       <View style={styles.week}>
         {weekOf(day, settings.weekStart).map((iso, i) => {
@@ -122,7 +130,6 @@ export default function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
-  topbar: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, minHeight: 44 },
   week: { flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: -4 },
   day: { alignItems: 'center', gap: 3, paddingVertical: 2, flex: 1 },
   dayNumber: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },

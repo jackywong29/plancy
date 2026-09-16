@@ -27,7 +27,6 @@ export default function IdeasScreen() {
 
   return (
     <Screen>
-      <View style={{ minHeight: 44 }} />
       <BigTitle subtitle={`${ideas.length} ideas, ${starred} starred`}>ideas</BigTitle>
 
       <Card style={styles.capture}>

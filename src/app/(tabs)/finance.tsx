@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BigTitle, Card, Empty, Icon, Row, Screen, SectionHead, Tick } from '@/components/ui';
@@ -15,9 +15,13 @@ const SECTIONS: { kind: MoneyKind; title: string }[] = [
 ];
 
 export default function FinanceScreen() {
-  const { money, settings, toggleBillPaid, deleteMoney } = useStore();
+  const { money, settings, toggleBillPaid, deleteMoney, ensureBills } = useStore();
   const theme = useTheme();
   const [month, setMonth] = useState(isoMonth(todayIso()));
+
+  useEffect(() => {
+    if (month >= isoMonth(todayIso())) ensureBills(month);
+  }, [month, ensureBills]);
 
   const entries = moneyForMonth(money, month);
   const totals = monthTotals(entries);
@@ -30,7 +34,6 @@ export default function FinanceScreen() {
 
   return (
     <Screen>
-      <View style={{ minHeight: 44 }} />
       <BigTitle>finance</BigTitle>
 
       <Card style={styles.monthPill}>

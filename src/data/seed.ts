@@ -28,8 +28,12 @@ export function seedIfEmpty(): void {
     [1, '11:00', 'Dentist', '', false],
     [2, '19:30', 'Badminton', 'weekly', false],
   ];
+  // Repeating tasks with the same title belong to one series.
+  const series = new Map<string, string>();
   for (const [offset, time, title, repeat, done] of tasks) {
-    saveTask({ id: uid(), date: iso(offset), time, title, repeat, done, createdAt: now, syncedAt: now });
+    const id = uid();
+    const seriesId = repeat ? (series.get(title) ?? (series.set(title, id), id)) : id;
+    saveTask({ id, date: iso(offset), time, title, repeat, seriesId, done, createdAt: now, syncedAt: now });
   }
 
   const entries: [number, string, string][] = [
@@ -68,8 +72,10 @@ export function seedIfEmpty(): void {
     ['bill', 'Car insurance', 31000, 28, false],
   ];
   money.forEach(([kind, label, amountMinor, dueDay, paid], i) => {
+    const id = uid();
     saveMoney({
-      id: uid(),
+      id,
+      seriesId: id,
       month,
       kind,
       label,

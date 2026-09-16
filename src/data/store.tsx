@@ -8,7 +8,7 @@
  */
 import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react';
 
-import { settingsDefaults } from '@/lib/format';
+import { addDays, settingsDefaults, todayIso } from '@/lib/format';
 
 import {
   forgetTombstone,
@@ -23,6 +23,7 @@ import {
   uid,
   writeSetting,
 } from './db';
+import { missingBills, upcomingRepeats } from './repeats';
 import { seedIfEmpty } from './seed';
 import type { Idea, JournalEntry, Mood, MoneyEntry, Repeat, Settings, Task } from './types';
 
@@ -36,6 +37,10 @@ type Store = Data & {
   settings: Settings;
   setSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   addTask: (input: { date: string; time: string; title: string; repeat: Repeat }) => void;
+  /** Create the next instances of repeating tasks up to and including `through`. */
+  ensureRepeats: (through: string) => void;
+  /** Copy last month's recurring bills into `month` if they are not there yet. */
+  ensureBills: (month: string) => void;
   toggleTask: (id: string) => void;
   moveTask: (id: string, date: string) => void;
   editTask: (id: string, patch: Partial<Pick<Task, 'title' | 'time' | 'repeat'>>) => void;
@@ -46,14 +51,21 @@ type Store = Data & {
   toggleStar: (id: string) => void;
   deleteIdea: (id: string) => void;
   toggleBillPaid: (id: string) => void;
-  addMoney: (input: Omit<MoneyEntry, 'id' | 'createdAt' | 'syncedAt'>) => void;
+  addMoney: (input: Omit<MoneyEntry, 'id' | 'seriesId' | 'createdAt' | 'syncedAt'>) => void;
   deleteMoney: (id: string) => void;
 };
 
 const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<Data>(() => loadAll());
+  const [data, setData] = useState<Data>(() => {
+    const loaded = loadAll();
+    // Keep the coming week filled in, so tomorrow's run already exists tonight.
+    const today = todayIso();
+    const created = upcomingRepeats(loaded.tasks, today, addDays(today, 7)).map((t) => ({ id: uid(), ...t }));
+    for (const t of created) saveTask(t);
+    return { ...loaded, tasks: [...loaded.tasks, ...created] };
+  });
   const [settings, setSettings] = useState<Settings>(() => readSettings(settingsDefaults()));
 
   const stamp = () => Date.now();
@@ -64,9 +76,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addTask: Store['addTask'] = useCallback((input) => {
-    const task: Task = { id: uid(), ...input, done: false, createdAt: stamp(), syncedAt: stamp() };
+    const id = uid();
+    const task: Task = { id, seriesId: id, ...input, done: false, createdAt: stamp(), syncedAt: stamp() };
     saveTask(task);
-    setData((d) => ({ ...d, tasks: [...d.tasks, task] }));
+    setData((d) => {
+      const tasks = [...d.tasks, task];
+      const today = todayIso();
+      const created = upcomingRepeats(tasks, today, addDays(today, 7)).map((t) => ({ id: uid(), ...t }));
+      for (const t of created) saveTask(t);
+      return { ...d, tasks: [...tasks, ...created] };
+    });
+  }, []);
+
+  const ensureRepeats = useCallback((through: string) => {
+    setData((d) => {
+      const created = upcomingRepeats(d.tasks, todayIso(), through).map((t) => ({ id: uid(), ...t }));
+      if (created.length === 0) return d;
+      for (const t of created) saveTask(t);
+      return { ...d, tasks: [...d.tasks, ...created] };
+    });
+  }, []);
+
+  const ensureBills = useCallback((month: string) => {
+    setData((d) => {
+      const created = missingBills(d.money, month).map((m) => ({ id: uid(), ...m }));
+      if (created.length === 0) return d;
+      for (const m of created) saveMoney(m);
+      return { ...d, money: [...d.money, ...created] };
+    });
   }, []);
 
   const patchTask = useCallback((id: string, patch: Partial<Task>) => {
@@ -168,7 +205,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addMoney: Store['addMoney'] = useCallback((input) => {
-    const entry: MoneyEntry = { id: uid(), ...input, createdAt: stamp(), syncedAt: stamp() };
+    const id = uid();
+    const entry: MoneyEntry = { id, seriesId: id, ...input, createdAt: stamp(), syncedAt: stamp() };
     saveMoney(entry);
     setData((d) => ({ ...d, money: [...d.money, entry] }));
   }, []);
@@ -184,6 +222,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       settings,
       setSetting,
       addTask,
+      ensureRepeats,
+      ensureBills,
       toggleTask,
       moveTask: (id, date) => patchTask(id, { date }),
       editTask: (id, patch) => patchTask(id, patch),
@@ -197,7 +237,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addMoney,
       deleteMoney,
     }),
-    [data, settings, setSetting, addTask, toggleTask, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, deleteIdea, toggleBillPaid, addMoney, deleteMoney],
+    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, deleteIdea, toggleBillPaid, addMoney, deleteMoney],
   );
 
   return <StoreContext value={value}>{children}</StoreContext>;

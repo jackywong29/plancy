@@ -17,6 +17,8 @@ export type Task = {
   time: string;
   title: string;
   repeat: Repeat;
+  /** Groups the instances of one repeating task. Equals the first instance's id. */
+  seriesId: string;
   done: boolean;
   createdAt: number;
   syncedAt: number;
@@ -63,6 +65,8 @@ export type MoneyEntry = {
   paid: boolean;
   /** Bills only: copy this into next month automatically. */
   repeatMonthly: boolean;
+  /** Groups a recurring bill across months. */
+  seriesId: string;
   createdAt: number;
   syncedAt: number;
 };

@@ -41,7 +41,6 @@ export default function JournalScreen() {
 
   return (
     <Screen>
-      <View style={{ minHeight: 44 }} />
       <BigTitle subtitle={`${past.length} ${past.length === 1 ? 'entry' : 'entries'} so far`}>journal</BigTitle>
 
       <Card style={styles.datePill}>

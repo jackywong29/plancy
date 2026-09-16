@@ -20,7 +20,7 @@ export function Screen({ children, bottomInset = 110 }: { children: ReactNode; b
     <ScrollView
       style={{ backgroundColor: theme.ground }}
       contentContainerStyle={{
-        paddingTop: insets.top,
+        paddingTop: insets.top + 4,
         paddingHorizontal: Space.gutter,
         paddingBottom: bottomInset,
       }}
@@ -31,15 +31,30 @@ export function Screen({ children, bottomInset = 110 }: { children: ReactNode; b
   );
 }
 
-/** The app's one flourish: a lowercase title closed by the accent dot. */
-export function BigTitle({ children, subtitle }: { children: string; subtitle?: string }) {
+/**
+ * The app's one flourish: a lowercase title closed by the accent dot.
+ * Screen actions sit on the title line, the way iOS puts bar buttons beside a
+ * large title, so no row above it is ever empty.
+ */
+export function BigTitle({
+  children,
+  subtitle,
+  actions,
+}: {
+  children: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
   const theme = useTheme();
   return (
-    <View style={{ marginBottom: subtitle ? 12 : 14 }}>
-      <Text style={[styles.bigTitle, { color: theme.ink }]} accessibilityRole="header">
-        {children}
-        <Text style={{ color: theme.accent }}>.</Text>
-      </Text>
+    <View style={{ marginBottom: 12 }}>
+      <View style={styles.titleRow}>
+        <Text style={[styles.bigTitle, { color: theme.ink }]} accessibilityRole="header">
+          {children}
+          <Text style={{ color: theme.accent }}>.</Text>
+        </Text>
+        {actions ? <View style={styles.titleActions}>{actions}</View> : null}
+      </View>
       {subtitle ? <Text style={[styles.subtitle, { color: theme.ink2 }]}>{subtitle}</Text> : null}
     </View>
   );
@@ -218,7 +233,9 @@ export function Empty({ title, body }: { title: string; body: string }) {
 }
 
 const styles = StyleSheet.create({
-  bigTitle: { fontFamily: Type.display, fontSize: Type.title, letterSpacing: -0.5 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 },
+  titleActions: { flexDirection: 'row', gap: 10 },
+  bigTitle: { fontFamily: Type.display, fontSize: Type.title, letterSpacing: -0.5, flexShrink: 1 },
   subtitle: { fontSize: Type.callout, marginTop: 2 },
   sectionHead: {
     flexDirection: 'row',

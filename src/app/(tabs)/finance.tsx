@@ -14,7 +14,7 @@ const SECTIONS: { kind: MoneyKind; title: string }[] = [
   { kind: 'spending', title: 'Spending' },
 ];
 
-export default function MoneyScreen() {
+export default function FinanceScreen() {
   const { money, settings, toggleBillPaid, deleteMoney } = useStore();
   const theme = useTheme();
   const [month, setMonth] = useState(isoMonth(todayIso()));
@@ -31,7 +31,7 @@ export default function MoneyScreen() {
   return (
     <Screen>
       <View style={{ minHeight: 44 }} />
-      <BigTitle>money</BigTitle>
+      <BigTitle>finance</BigTitle>
 
       <Card style={styles.monthPill}>
         <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => setMonth(addMonths(month, -1))} style={styles.arrow}>

@@ -20,7 +20,7 @@ export function Screen({ children, bottomInset = 110 }: { children: ReactNode; b
     <ScrollView
       style={{ backgroundColor: theme.ground }}
       contentContainerStyle={{
-        paddingTop: insets.top + 6,
+        paddingTop: insets.top,
         paddingHorizontal: Space.gutter,
         paddingBottom: bottomInset,
       }}

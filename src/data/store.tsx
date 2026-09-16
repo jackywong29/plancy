@@ -11,6 +11,7 @@ import { createContext, use, useCallback, useMemo, useState, type ReactNode } fr
 import { settingsDefaults } from '@/lib/format';
 
 import {
+  forgetTombstone,
   loadAll,
   migrate,
   readSettings,
@@ -39,6 +40,7 @@ type Store = Data & {
   moveTask: (id: string, date: string) => void;
   editTask: (id: string, patch: Partial<Pick<Task, 'title' | 'time' | 'repeat'>>) => void;
   deleteTask: (id: string) => void;
+  restoreTask: (task: Task) => void;
   writeJournal: (date: string, patch: { body?: string; mood?: Mood }) => void;
   addIdea: (raw: string) => void;
   toggleStar: (id: string) => void;
@@ -93,6 +95,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const deleteTask = useCallback((id: string) => {
     removeRecord('tasks', id);
     setData((d) => ({ ...d, tasks: d.tasks.filter((t) => t.id !== id) }));
+  }, []);
+
+  const restoreTask = useCallback((task: Task) => {
+    forgetTombstone(task.id);
+    const next = { ...task, syncedAt: stamp() };
+    saveTask(next);
+    setData((d) => ({ ...d, tasks: [...d.tasks.filter((t) => t.id !== task.id), next] }));
   }, []);
 
   const writeJournal: Store['writeJournal'] = useCallback((date, patch) => {
@@ -179,6 +188,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       moveTask: (id, date) => patchTask(id, { date }),
       editTask: (id, patch) => patchTask(id, patch),
       deleteTask,
+      restoreTask,
       writeJournal,
       addIdea,
       toggleStar,
@@ -187,7 +197,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addMoney,
       deleteMoney,
     }),
-    [data, settings, setSetting, addTask, toggleTask, patchTask, deleteTask, writeJournal, addIdea, toggleStar, deleteIdea, toggleBillPaid, addMoney, deleteMoney],
+    [data, settings, setSetting, addTask, toggleTask, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, deleteIdea, toggleBillPaid, addMoney, deleteMoney],
   );
 
   return <StoreContext value={value}>{children}</StoreContext>;

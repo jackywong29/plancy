@@ -28,8 +28,8 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon sf="lightbulb" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="money">
-        <NativeTabs.Trigger.Label>Money</NativeTabs.Trigger.Label>
+      <NativeTabs.Trigger name="finance">
+        <NativeTabs.Trigger.Label>Finance</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="creditcard" />
       </NativeTabs.Trigger>
     </NativeTabs>

@@ -185,6 +185,11 @@ export function removeRecord(kind: 'tasks' | 'journal' | 'ideas' | 'money', id: 
   db.runSync('INSERT OR REPLACE INTO tombstones (id, kind, deletedAt) VALUES (?, ?, ?)', [id, kind, Date.now()]);
 }
 
+/** Undo: bring a record back and drop the tombstone that would out-vote it in a sync merge. */
+export function forgetTombstone(id: string): void {
+  db.runSync('DELETE FROM tombstones WHERE id = ?', [id]);
+}
+
 /* ---------- settings ---------- */
 
 export function readSettings(fallback: Settings): Settings {

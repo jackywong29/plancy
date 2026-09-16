@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { ToastProvider } from '@/components/toast';
 import { StoreProvider, useStore } from '@/data/store';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 
@@ -20,7 +21,9 @@ function Themed() {
   const { settings } = useStore();
   return (
     <ThemeProvider appearance={settings.appearance} accent={settings.accent}>
-      <Shell />
+      <ToastProvider>
+        <Shell />
+      </ToastProvider>
     </ThemeProvider>
   );
 }
@@ -39,6 +42,10 @@ function Shell() {
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen
+          name="task"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: [0.92], sheetGrabberVisible: true, headerShadowVisible: false }}
+        />
       </Stack>
     </>
   );

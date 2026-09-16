@@ -137,10 +137,10 @@ export default function SettingsScreen() {
           <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Lock</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Lock ${settings.lockScope === 'app' ? 'the whole app' : 'Journal and Money'}, tap to change`}
+            accessibilityLabel={`Lock ${settings.lockScope === 'app' ? 'the whole app' : 'Journal and Finance'}, tap to change`}
             onPress={() => setSetting('lockScope', settings.lockScope === 'app' ? 'private' : 'app')}>
             <Text style={{ color: theme.accentText, fontSize: Type.body }}>
-              {settings.lockScope === 'app' ? 'Whole app' : 'Journal and Money'}
+              {settings.lockScope === 'app' ? 'Whole app' : 'Journal and Finance'}
             </Text>
           </Pressable>
         </Row>

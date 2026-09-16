@@ -1,9 +1,11 @@
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ToastProvider } from '@/components/toast';
 import { StoreProvider, useStore } from '@/data/store';
+import { syncReminders } from '@/lib/reminders';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 
 export default function RootLayout() {
@@ -18,7 +20,13 @@ export default function RootLayout() {
 
 /** Appearance and accent are settings, so the theme is read inside the store. */
 function Themed() {
-  const { settings } = useStore();
+  const { settings, tasks } = useStore();
+
+  // Any change to tasks or reminder settings re-plans the week's alarms.
+  useEffect(() => {
+    void syncReminders(tasks, settings);
+  }, [tasks, settings]);
+
   return (
     <ThemeProvider appearance={settings.appearance} accent={settings.accent}>
       <ToastProvider>

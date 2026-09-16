@@ -8,19 +8,17 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Space, Type, useTheme } from '@/theme/theme';
 
 /** Scrolling page body. The bottom inset clears the floating tab bar. */
 export function Screen({ children, bottomInset = 110 }: { children: ReactNode; bottomInset?: number }) {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   return (
     <ScrollView
       style={{ backgroundColor: theme.ground }}
       contentContainerStyle={{
-        paddingTop: insets.top + 4,
+        paddingTop: 4,
         paddingHorizontal: Space.gutter,
         paddingBottom: bottomInset,
       }}

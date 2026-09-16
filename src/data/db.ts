@@ -79,6 +79,18 @@ export function migrate(): void {
     const cols = db.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
     if (!cols.includes('seriesId')) db.execSync(`ALTER TABLE ${table} ADD COLUMN seriesId TEXT NOT NULL DEFAULT ''`);
   }
+  // Rows from before series existed: repeating tasks that look alike become one
+  // series, otherwise each of them would spawn its own copies.
+  db.execSync(`
+    UPDATE tasks SET seriesId = (
+      SELECT MIN(o.id) FROM tasks o WHERE o.title = tasks.title AND o.time = tasks.time AND o.repeat = tasks.repeat
+    ) WHERE seriesId = '' AND repeat != '';
+    UPDATE tasks SET seriesId = id WHERE seriesId = '';
+    UPDATE money SET seriesId = (
+      SELECT MIN(o.id) FROM money o WHERE o.label = money.label AND o.kind = money.kind
+    ) WHERE seriesId = '' AND repeatMonthly = 1;
+    UPDATE money SET seriesId = id WHERE seriesId = '';
+  `);
 }
 
 export function uid(): string {

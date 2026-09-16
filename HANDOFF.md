@@ -71,6 +71,19 @@ xcrun simctl openurl booted "plancy://journal"        # or today, ideas, finance
 xcrun simctl io booted screenshot shot.png
 ```
 
+**Widget debugging.** A release build renders a widget layout that throws as
+an *empty white tile* (the red error box is debug-only), and iOS passes no
+props for the gallery preview and placeholder. Test a layout offline: take the
+layout string from the simulator's app group plist
+(`__expo_widgets_TodayWidget_layout`), eval `ExpoWidgets.bundle` from the
+built app in Node, and call `__expoWidgetRender(props, { widgetFamily })` with
+real, empty and partial props.
+
+**Face ID in the simulator:** `xcrun simctl spawn booted notifyutil -s
+com.apple.BiometricKit.enrollmentChanged '1'` then `-p` the same name to
+enrol; `notifyutil -p com.apple.BiometricKit_Sim.pearl.match` (or
+`.nomatch`) answers the prompt.
+
 Metro: `npx expo start --port 8081` if it isn't already running. **After
 installing a package that ships a Babel transform (expo-widgets did), restart
 Metro with `--clear`**: babel-preset-expo only enables the `'widget'`
@@ -114,7 +127,10 @@ src/app/settings.tsx       appearance, palette + custom colour, region, reminder
 src/app/currency.tsx       currency list with search (Settings → Currency)
 src/components/calendar.tsx week strip / month grid on Today, with the toggle chevron
 src/components/cashflow.tsx six-month in/out bars on Finance
-src/lib/lock.tsx           Face ID: LockProvider (re-locks on background) + Locked cover
+src/lib/lock.tsx           Face ID: LockProvider (rules in the header), AppLock, PrivateLock, privacy cover
+src/lib/haptics.ts         haptic vocabulary: haptic('tick' | 'dayDone' | 'milestone' ...), Settings toggle
+src/lib/celebrate.ts       which moment a tick earned: day / spotless month / streak milestone
+src/components/celebration.tsx  dot burst + milestone card (CelebrationProvider at the root)
 src/lib/nudges.ts          morning nudge copy, planned a week ahead (opt-in)
 src/lib/widget.ts          feeds widgets/TodayWidget.tsx a 4-day timeline
 widgets/TodayWidget.tsx    the home screen widget (small + medium), Expo UI only
@@ -186,6 +202,14 @@ the 1st adds last month's; shares the 64-notification budget: 53 reminders +
 home screen widget "Today" in small + medium, style chosen in Settings →
 Widget (Progress / Streak / Tasks), fed by `syncWidget` on every change.
 
+Also 16 Sep, second round from Jacky's phone test: Face ID reworked (scope
+changes apply at once, one unlock per session, relock on background, privacy
+cover); widget fixed (blank tile + "unmatched route"); calendar month
+unfolds/folds from the current week with swipe and month slides; haptics
+vocabulary with a toggle; day-done and streak-milestone celebrations; cash
+flow chart redesigned (single series of money left, see the component
+header for why) and shown from the first month.
+
 ## Next, in this order
 
 1. **iCloud sync** — Jacky agreed (16 Sep) it waits until the Apple
@@ -200,12 +224,12 @@ Widget (Progress / Streak / Tasks), fed by `syncWidget` on every change.
 2. Widgets, next step: tick a task from the widget (interactive, App Intents)
    and a Lock Screen size. Test on the phone that App Groups work with the
    free team (the simulator build is the first check).
-3. Streak celebration: the dot drops into "today, done." Must honour Reduce
-   Motion.
-4. Onboarding, 2–3 screens, including import from the web planner's export
+3. Onboarding, 2–3 screens, including import from the web planner's export
    JSON. Ask for notifications there and offer the morning nudge (it must stay
    opt-in: App Review 4.5.4 treats habit nudges as marketing).
-5. Editing finance entries.
+4. Editing finance entries.
+5. Tune haptics and celebrations on the phone (the simulator plays no
+   haptics); widget tick from the home screen (interactive widget).
 6. Move UI text out of the code for translation (structure now, translate later).
 
 ## Open questions for Jacky

@@ -65,6 +65,11 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
 - Widget code (`widgets/`) may only use `@expo/ui/swift-ui` and nothing
   declared outside the component; all data comes in as props.
 - Notifications: 64 pending max on iOS. Reminders take up to 53, the nudge 7.
+- Haptics go through `haptic()` in src/lib/haptics.ts, fired by the handler
+  that made the change (one owner per event). `Tick` itself is silent.
+- Widget layouts must never throw: default every prop (see widgets/TodayWidget.tsx).
+- Motion uses Reanimated layout animations; Reduce Motion is honoured by its
+  defaults, and bespoke motion checks `useReducedMotion()`.
 
 ## Not built yet
 

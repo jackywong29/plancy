@@ -71,7 +71,12 @@ xcrun simctl openurl booted "plancy://journal"        # or today, ideas, finance
 xcrun simctl io booted screenshot shot.png
 ```
 
-Metro: `npx expo start --port 8081` if it isn't already running.
+Metro: `npx expo start --port 8081` if it isn't already running. **After
+installing a package that ships a Babel transform (expo-widgets did), restart
+Metro with `--clear`**: babel-preset-expo only enables the `'widget'`
+directive plugin when it sees expo-widgets, and a running Metro keeps the old
+decision. The symptom was `ArgumentCastException: The 2nd argument cannot be
+cast to type String` from `createWidget` at launch.
 
 ### On Jacky's iPhone (cable, free Apple ID)
 

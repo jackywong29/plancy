@@ -9,6 +9,7 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 
+import { haptic } from '@/lib/haptics';
 import { Type, useTheme } from '@/theme/theme';
 
 type ToastAction = { label: string; onPress: () => void };
@@ -47,6 +48,7 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
           accessibilityRole="button"
           hitSlop={10}
           onPress={() => {
+            haptic('undo');
             toast.action?.onPress();
             onDone();
           }}>

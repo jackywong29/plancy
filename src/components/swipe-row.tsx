@@ -14,6 +14,7 @@ import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp,
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { Type } from '@/theme/theme';
+import { haptic } from '@/lib/haptics';
 
 import { Icon } from './ui';
 
@@ -70,7 +71,10 @@ export function SwipeRow({
       containerStyle={containerStyle}
       onSwipeableOpenStartDrag={() => (swiped.current = true)}
       onSwipeableCloseStartDrag={() => (swiped.current = true)}
-      onSwipeableWillOpen={() => (open.current = true)}
+      onSwipeableWillOpen={() => {
+        if (!open.current) haptic('reveal');
+        open.current = true;
+      }}
       onSwipeableWillClose={() => (open.current = false)}
       renderRightActions={() => (
         <View style={styles.actions}>

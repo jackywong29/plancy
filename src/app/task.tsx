@@ -14,6 +14,7 @@ import { Card, Chip, Row, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Repeat } from '@/data/types';
 import { addDays, formatDayShort, fromIso, isoDate, todayIso } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 const REPEATS: { value: Repeat; label: string }[] = [
@@ -60,6 +61,7 @@ export default function TaskSheet() {
     } else {
       addTask({ date, time, title: title.trim(), repeat });
     }
+    haptic('saved');
     router.back();
   }
 

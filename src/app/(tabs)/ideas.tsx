@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, LinearTransition } from 'react-native-reanimated';
 
 import { SwipeRow } from '@/components/swipe-row';
 import { useToast } from '@/components/toast';
 import { BigTitle, Card, Chip, Empty, Icon, RoundButton, Screen, Tick } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Idea } from '@/data/types';
+import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 export default function IdeasScreen() {
@@ -19,20 +21,30 @@ export default function IdeasScreen() {
   const starred = ideas.filter((i) => i.starred).length;
   const done = ideas.filter((i) => i.done).length;
   const visible = ideas
-    .filter((i) =>
-      filter === 'all' ? true : filter === 'starred' ? i.starred : filter === 'done' ? i.done : i.tag === filter,
-    )
+    .filter((i) => (filter === 'all' ? true : filter === 'starred' ? i.starred : filter === 'done' ? i.done : i.tag === filter))
     // Open ideas first, done ones sink to the bottom; within each, starred on top, then newest.
     .sort((a, b) => Number(a.done) - Number(b.done) || Number(b.starred) - Number(a.starred) || b.createdAt - a.createdAt);
 
   function commit() {
     if (!draft.trim()) return;
     addIdea(draft);
+    haptic('saved');
     setDraft('');
     setFilter('all');
   }
 
+  function toggleIdea(idea: Idea) {
+    haptic(idea.done ? 'untick' : 'tick');
+    toggleIdeaDone(idea.id);
+  }
+
+  function star(idea: Idea) {
+    haptic('select');
+    toggleStar(idea.id);
+  }
+
   function remove(idea: Idea) {
+    haptic('remove');
     deleteIdea(idea.id);
     toast('Idea deleted', { label: 'Undo', onPress: () => restoreIdea(idea) });
   }
@@ -77,69 +89,85 @@ export default function IdeasScreen() {
           body="Ideas, things to try, half-thoughts. Drop them in above and sort them later."
         />
       ) : (
-        <View style={{ gap: 10 }}>
-          {visible.map((idea) => (
-            <SwipeRow
-              key={idea.id}
-              containerStyle={styles.swipe}
-              style={[styles.idea, { backgroundColor: theme.card }]}
-              accessibilityLabel={[idea.text, idea.tag && `#${idea.tag}`, idea.starred && 'starred', idea.done && 'done']
-                .filter(Boolean)
-                .join(', ')}
-              inRowActions={[
-                { name: 'toggle', label: idea.done ? 'Mark not done' : 'Mark done', onPress: () => toggleIdeaDone(idea.id) },
-                { name: 'star', label: idea.starred ? 'Unstar' : 'Star', onPress: () => toggleStar(idea.id) },
-              ]}
-              actions={[
-                { name: 'delete', label: 'Delete', icon: 'trash', background: theme.bad, ink: '#FFFFFF', onPress: () => remove(idea) },
-              ]}>
-              <View style={styles.ideaTop}>
-                <Text
-                  style={{
-                    flex: 1,
-                    color: idea.done ? theme.ink3 : theme.ink,
-                    fontSize: Type.callout,
-                    lineHeight: 21,
-                    textDecorationLine: idea.done ? 'line-through' : 'none',
-                  }}>
-                  {idea.text}
-                </Text>
-                <Tick checked={idea.done} onPress={() => toggleIdeaDone(idea.id)} label={`${idea.text} done`} size={24} />
-              </View>
-              <View style={styles.ideaFoot}>
-                {idea.tag ? (
-                  <Text
-                    style={{
-                      color: theme.accentText,
-                      backgroundColor: theme.accentSoft,
-                      fontSize: Type.caption,
-                      fontWeight: '600',
-                      paddingHorizontal: 8,
-                      paddingVertical: 2,
-                      borderRadius: 999,
-                      overflow: 'hidden',
-                      opacity: idea.done ? 0.6 : 1,
-                    }}>
-                    #{idea.tag}
-                  </Text>
-                ) : null}
-                <View style={{ flex: 1 }} />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: idea.starred }}
-                  accessibilityLabel={idea.starred ? 'Unstar idea' : 'Star idea'}
-                  hitSlop={13}
-                  onPress={() => toggleStar(idea.id)}>
-                  <Icon
-                    name={idea.starred ? 'star.fill' : 'star'}
-                    size={18}
-                    color={idea.starred ? theme.accentText : theme.ink2}
-                  />
-                </Pressable>
-              </View>
-            </SwipeRow>
-          ))}
-        </View>
+        <LayoutAnimationConfig skipEntering>
+          <View style={{ gap: 10 }}>
+            {visible.map((idea) => (
+              // Ideas glide to their new place when ticked or starred, and fade
+              // when deleted or filtered out.
+              <Animated.View
+                key={idea.id}
+                layout={LinearTransition.duration(280)}
+                entering={FadeIn.duration(200)}
+                exiting={FadeOut.duration(160)}>
+                <SwipeRow
+                  containerStyle={styles.swipe}
+                  style={[styles.idea, { backgroundColor: theme.card }]}
+                  accessibilityLabel={[idea.text, idea.tag && `#${idea.tag}`, idea.starred && 'starred', idea.done && 'done']
+                    .filter(Boolean)
+                    .join(', ')}
+                  inRowActions={[
+                    { name: 'toggle', label: idea.done ? 'Mark not done' : 'Mark done', onPress: () => toggleIdea(idea) },
+                    { name: 'star', label: idea.starred ? 'Unstar' : 'Star', onPress: () => star(idea) },
+                  ]}
+                  actions={[
+                    {
+                      name: 'delete',
+                      label: 'Delete',
+                      icon: 'trash',
+                      background: theme.bad,
+                      ink: '#FFFFFF',
+                      onPress: () => remove(idea),
+                    },
+                  ]}>
+                  <View style={styles.ideaTop}>
+                    <Text
+                      style={{
+                        flex: 1,
+                        color: idea.done ? theme.ink3 : theme.ink,
+                        fontSize: Type.callout,
+                        lineHeight: 21,
+                        textDecorationLine: idea.done ? 'line-through' : 'none',
+                      }}>
+                      {idea.text}
+                    </Text>
+                    <Tick checked={idea.done} onPress={() => toggleIdea(idea)} label={`${idea.text} done`} size={24} />
+                  </View>
+                  <View style={styles.ideaFoot}>
+                    {idea.tag ? (
+                      <Text
+                        style={{
+                          color: theme.accentText,
+                          backgroundColor: theme.accentSoft,
+                          fontSize: Type.caption,
+                          fontWeight: '600',
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 999,
+                          overflow: 'hidden',
+                          opacity: idea.done ? 0.6 : 1,
+                        }}>
+                        #{idea.tag}
+                      </Text>
+                    ) : null}
+                    <View style={{ flex: 1 }} />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: idea.starred }}
+                      accessibilityLabel={idea.starred ? 'Unstar idea' : 'Star idea'}
+                      hitSlop={13}
+                      onPress={() => star(idea)}>
+                      <Icon
+                        name={idea.starred ? 'star.fill' : 'star'}
+                        size={18}
+                        color={idea.starred ? theme.accentText : theme.ink2}
+                      />
+                    </Pressable>
+                  </View>
+                </SwipeRow>
+              </Animated.View>
+            ))}
+          </View>
+        </LayoutAnimationConfig>
       )}
     </Screen>
   );

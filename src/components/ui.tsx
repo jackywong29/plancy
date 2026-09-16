@@ -4,10 +4,13 @@
  * Keeping them here is what makes one colour choice repaint the whole app, and
  * what keeps tap targets at the 44pt minimum in one place instead of twelve.
  */
-import * as Haptics from 'expo-haptics';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+
+import { haptic } from '@/lib/haptics';
 
 import { Space, Type, useTheme } from '@/theme/theme';
 
@@ -110,7 +113,11 @@ export function Row({
   );
 }
 
-/** The circle that fills with the accent when something is done. */
+/**
+ * The circle that fills with the accent when something is done. Ticking it
+ * gives a small spring pop; the haptic belongs to whoever handles `onPress`,
+ * since only they know whether this tick finished the whole day.
+ */
 export function Tick({
   checked,
   onPress,
@@ -123,27 +130,42 @@ export function Tick({
   size?: number;
 }) {
   const theme = useTheme();
+  const scale = useSharedValue(1);
+  const pop = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  // Pop only when it becomes checked, not when a list first draws. Reduce
+  // Motion is honoured by Reanimated's defaults (the spring is skipped).
+  const wasChecked = useSharedValue(checked);
+  useEffect(() => {
+    if (checked && !wasChecked.value) {
+      scale.value = withSequence(withTiming(0.82, { duration: 90 }), withSpring(1, { damping: 9, stiffness: 260 }));
+    }
+    wasChecked.value = checked;
+  }, [checked, scale, wasChecked]);
+
   return (
     <Pressable
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
       accessibilityLabel={label}
       hitSlop={Math.max(0, Math.round((44 - size) / 2))}
-      onPress={() => {
-        Haptics.impactAsync(checked ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium);
-        onPress();
-      }}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        borderWidth: 2,
-        borderColor: checked ? theme.accent : theme.ink3,
-        backgroundColor: checked ? theme.accent : 'transparent',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-      {checked ? <Icon name="checkmark" size={size * 0.55} color={theme.onAccent} weight="bold" /> : null}
+      onPress={onPress}>
+      <Animated.View
+        style={[
+          {
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            borderWidth: 2,
+            borderColor: checked ? theme.accent : theme.ink3,
+            backgroundColor: checked ? theme.accent : 'transparent',
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+          pop,
+        ]}>
+        {checked ? <Icon name="checkmark" size={size * 0.55} color={theme.onAccent} weight="bold" /> : null}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -205,7 +227,10 @@ export function Chip({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      onPress={onPress}
+      onPress={() => {
+        if (!selected) haptic('select');
+        onPress();
+      }}
       style={[
         styles.chip,
         { backgroundColor: selected ? theme.accent : theme.card },

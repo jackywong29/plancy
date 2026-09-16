@@ -4,8 +4,9 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BigTitle, Card, Empty, Icon, RoundButton, Row, Screen, SectionHead, Tick } from '@/components/ui';
 import { CashFlow } from '@/components/cashflow';
+import { haptic } from '@/lib/haptics';
 import { moneyForMonth, monthTotals, useStore } from '@/data/store';
-import { Locked } from '@/lib/lock';
+import { PrivateLock } from '@/lib/lock';
 import type { MoneyKind } from '@/data/types';
 import { addMonths, formatMoney, formatMonthLong, isoMonth, todayIso } from '@/lib/format';
 import { Space, Type, useTheme } from '@/theme/theme';
@@ -36,7 +37,7 @@ export default function FinanceScreen() {
   const share = (value: number): `${number}%` => `${totals.income > 0 ? Math.max(0, (value / totals.income) * 100) : 0}%`;
 
   return (
-    <Locked settings={settings} what="Finance">
+    <PrivateLock title="finance">
       <Screen>
         <BigTitle
           actions={
@@ -60,7 +61,10 @@ export default function FinanceScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Previous month"
-            onPress={() => setMonth(addMonths(month, -1))}
+            onPress={() => {
+              haptic('select');
+              setMonth(addMonths(month, -1));
+            }}
             style={styles.arrow}
           >
             <Icon name="chevron.left" size={20} color={theme.accentText} />
@@ -69,7 +73,10 @@ export default function FinanceScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Next month"
-            onPress={() => setMonth(addMonths(month, 1))}
+            onPress={() => {
+              haptic('select');
+              setMonth(addMonths(month, 1));
+            }}
             style={styles.arrow}
           >
             <Icon name="chevron.right" size={20} color={theme.accentText} />
@@ -183,7 +190,10 @@ export default function FinanceScreen() {
                               {
                                 text: 'Delete',
                                 style: 'destructive',
-                                onPress: () => deleteMoney(entry.id),
+                                onPress: () => {
+                                  haptic('remove');
+                                  deleteMoney(entry.id);
+                                },
                               },
                               { text: 'Cancel', style: 'cancel' },
                             ])
@@ -193,7 +203,10 @@ export default function FinanceScreen() {
                             <Tick
                               size={24}
                               checked={entry.paid}
-                              onPress={() => toggleBillPaid(entry.id)}
+                              onPress={() => {
+                                  haptic(entry.paid ? 'untick' : 'tick');
+                                  toggleBillPaid(entry.id);
+                                }}
                               label={`${entry.label} paid`}
                             />
                           ) : null}
@@ -257,7 +270,7 @@ export default function FinanceScreen() {
           </>
         )}
       </Screen>
-    </Locked>
+    </PrivateLock>
   );
 }
 

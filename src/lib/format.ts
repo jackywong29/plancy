@@ -138,6 +138,7 @@ export const settingsDefaults = (): Settings => ({
   hour12: deviceHour12(),
   remind: true,
   leadMinutes: 10,
+  haptics: true,
   lockEnabled: false,
   lockScope: 'private',
   nudge: false,

@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BigTitle, Card, Empty, Icon, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
-import { Locked } from '@/lib/lock';
+import { PrivateLock } from '@/lib/lock';
+import { haptic } from '@/lib/haptics';
 import type { Mood } from '@/data/types';
 import { addDays, formatDayLong, formatDayShort, todayIso } from '@/lib/format';
 import { Space, Type, useTheme } from '@/theme/theme';
@@ -17,7 +18,7 @@ const MOODS: { key: Mood; label: string; size: number }[] = [
 ];
 
 export default function JournalScreen() {
-  const { journal, writeJournal, settings } = useStore();
+  const { journal, writeJournal } = useStore();
   const theme = useTheme();
   const today = todayIso();
   const [date, setDate] = useState(today);
@@ -44,7 +45,7 @@ export default function JournalScreen() {
   const found = needle ? past.filter((e) => e.body.toLowerCase().includes(needle)) : past;
 
   return (
-    <Locked settings={settings} what="Journal">
+    <PrivateLock title="journal">
       <Screen>
         <BigTitle subtitle={`${past.length} ${past.length === 1 ? 'entry' : 'entries'} so far`}>journal</BigTitle>
 
@@ -52,7 +53,10 @@ export default function JournalScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Previous day"
-            onPress={() => setDate(addDays(date, -1))}
+            onPress={() => {
+              haptic('select');
+              setDate(addDays(date, -1));
+            }}
             style={styles.arrow}
           >
             <Icon name="chevron.left" size={20} color={theme.accentText} />
@@ -73,7 +77,10 @@ export default function JournalScreen() {
             accessibilityRole="button"
             accessibilityLabel="Next day"
             disabled={isToday}
-            onPress={() => setDate(addDays(date, 1))}
+            onPress={() => {
+              haptic('select');
+              setDate(addDays(date, 1));
+            }}
             style={styles.arrow}
           >
             <Icon name="chevron.right" size={20} color={isToday ? theme.ink3 : theme.accentText} />
@@ -110,7 +117,10 @@ export default function JournalScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 accessibilityLabel={m.label}
-                onPress={() => writeJournal(date, { mood: selected ? '' : m.key })}
+                onPress={() => {
+                  haptic('select');
+                  writeJournal(date, { mood: selected ? '' : m.key });
+                }}
                 style={[styles.mood, { backgroundColor: theme.card }, selected && { borderColor: theme.accent, borderWidth: 2 }]}
               >
                 <View
@@ -232,7 +242,7 @@ export default function JournalScreen() {
           </Card>
         )}
       </Screen>
-    </Locked>
+    </PrivateLock>
   );
 }
 

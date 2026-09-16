@@ -84,6 +84,8 @@ export type Settings = {
   remind: boolean;
   /** Minutes before a task's time to send the reminder. */
   leadMinutes: number;
+  /** Taps and buzzes on actions and celebrations. */
+  haptics: boolean;
   lockEnabled: boolean;
   /** Which parts Face ID protects. */
   lockScope: 'app' | 'private';

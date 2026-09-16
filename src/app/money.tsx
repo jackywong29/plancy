@@ -10,6 +10,7 @@ import { Card, Row, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { MoneyKind } from '@/data/types';
 import { formatMonthLong, isoMonth, parseMoney, todayIso } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 const KINDS: { value: MoneyKind; label: string }[] = [
@@ -48,6 +49,7 @@ export default function MoneySheet() {
       paid: false,
       repeatMonthly: kind === 'bill' ? repeatMonthly : false,
     });
+    haptic('saved');
     router.back();
   }
 

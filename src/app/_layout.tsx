@@ -3,9 +3,11 @@ import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { CelebrationProvider } from '@/components/celebration';
 import { ToastProvider } from '@/components/toast';
 import { StoreProvider, useStore } from '@/data/store';
-import { Locked, LockProvider } from '@/lib/lock';
+import { setHapticsEnabled } from '@/lib/haptics';
+import { AppLock, LockProvider } from '@/lib/lock';
 import { syncReminders } from '@/lib/reminders';
 import { syncWidget } from '@/lib/widget';
 import { ThemeProvider, useTheme } from '@/theme/theme';
@@ -22,7 +24,8 @@ export default function RootLayout() {
 
 /** Appearance and accent are settings, so the theme is read inside the store. */
 function Themed() {
-  const { settings, tasks } = useStore();
+  const { settings, setSetting, tasks } = useStore();
+  setHapticsEnabled(settings.haptics);
 
   // Any change to tasks or reminder settings re-plans the week's alarms.
   useEffect(() => {
@@ -32,11 +35,13 @@ function Themed() {
 
   return (
     <ThemeProvider appearance={settings.appearance} accent={settings.accent}>
-      <LockProvider settings={settings}>
+      <LockProvider settings={settings} setSetting={setSetting}>
         <ToastProvider>
-          <Locked settings={settings} what="plancy" always>
-            <Shell />
-          </Locked>
+          <AppLock>
+            <CelebrationProvider>
+              <Shell />
+            </CelebrationProvider>
+          </AppLock>
         </ToastProvider>
       </LockProvider>
     </ThemeProvider>

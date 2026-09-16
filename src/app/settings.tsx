@@ -7,6 +7,8 @@ import { Card, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { splitTime } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
+import { useLock } from '@/lib/lock';
 import { PALETTE } from '@/theme/palette';
 import { Space, Type, useTheme } from '@/theme/theme';
 
@@ -21,6 +23,11 @@ function nudgeLabel(hour: number, hour12: boolean): string {
   const { time, suffix } = splitTime(`${String(hour).padStart(2, '0')}:00`, hour12);
   return `${time} ${suffix}`.trim();
 }
+
+const LOCK_SCOPES: { value: Settings['lockScope']; label: string }[] = [
+  { value: 'app', label: 'Whole app' },
+  { value: 'private', label: 'Journal & Finance' },
+];
 
 const WIDGET_STYLES: { value: Settings['widgetStyle']; label: string }[] = [
   { value: 'progress', label: 'Progress' },
@@ -38,6 +45,7 @@ export default function SettingsScreen() {
   const { settings, setSetting, resetData } = useStore();
   const theme = useTheme();
   const router = useRouter();
+  const lock = useLock();
   const custom = !PALETTE.some((s) => s.hex === settings.accent);
 
   return (
@@ -52,7 +60,10 @@ export default function SettingsScreen() {
                 key={a.value}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
-                onPress={() => setSetting('appearance', a.value)}
+                onPress={() => {
+                  if (!selected) haptic('select');
+                  setSetting('appearance', a.value);
+                }}
                 style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
                 <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>
                   {a.label}
@@ -73,7 +84,10 @@ export default function SettingsScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected }}
               accessibilityLabel={swatch.name}
-              onPress={() => setSetting('accent', swatch.hex)}
+              onPress={() => {
+                if (!selected) haptic('select');
+                setSetting('accent', swatch.hex);
+              }}
               style={[
                 styles.swatch,
                 { backgroundColor: swatch.hex },
@@ -111,7 +125,10 @@ export default function SettingsScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Week starts on ${settings.weekStart === 1 ? 'Monday' : 'Sunday'}, tap to change`}
-            onPress={() => setSetting('weekStart', settings.weekStart === 1 ? 7 : 1)}>
+            onPress={() => {
+              haptic('select');
+              setSetting('weekStart', settings.weekStart === 1 ? 7 : 1);
+            }}>
             <Text style={{ color: theme.accentText, fontSize: Type.body }}>
               {settings.weekStart === 1 ? 'Monday' : 'Sunday'}
             </Text>
@@ -147,6 +164,7 @@ export default function SettingsScreen() {
             onPress={() => {
               const steps = [0, 5, 10, 30, 60];
               const next = steps[(steps.indexOf(settings.leadMinutes) + 1) % steps.length];
+              haptic('select');
               setSetting('leadMinutes', next);
             }}>
             <Text style={{ color: theme.accentText, fontSize: Type.body }}>
@@ -181,6 +199,7 @@ export default function SettingsScreen() {
               accessibilityLabel={`${nudgeLabel(settings.nudgeHour, settings.hour12)}, tap to change`}
               onPress={() => {
                 const hours = [6, 7, 8, 9, 10];
+                haptic('select');
                 setSetting('nudgeHour', hours[(hours.indexOf(settings.nudgeHour) + 1) % hours.length]);
               }}>
               <Text style={{ color: theme.accentText, fontSize: Type.body }}>{nudgeLabel(settings.nudgeHour, settings.hour12)}</Text>
@@ -202,7 +221,10 @@ export default function SettingsScreen() {
                 key={w.value}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
-                onPress={() => setSetting('widgetStyle', w.value)}
+                onPress={() => {
+                  if (!selected) haptic('select');
+                  setSetting('widgetStyle', w.value);
+                }}
                 style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
                 <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>{w.label}</Text>
               </Pressable>
@@ -214,31 +236,61 @@ export default function SettingsScreen() {
         What the small widget shows. The wider one adds your next tasks beside it. Add it from the home screen: hold down, tap +, search plancy.
       </Text>
 
+      <SectionHead title="Feel" />
+      <Card>
+        <Row first>
+          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Haptics</Text>
+          <Switch
+            value={settings.haptics}
+            onValueChange={(on) => setSetting('haptics', on)}
+            trackColor={{ true: theme.accent }}
+            accessibilityLabel="Haptics"
+          />
+        </Row>
+      </Card>
+      <Text style={[styles.footnote, { color: theme.ink2 }]}>Taps when you tick things off, and a little more when you finish the day.</Text>
+
       <SectionHead title="Privacy" />
       <Card>
         <Row first>
-          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Face ID lock</Text>
+          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Lock with {lock.method}</Text>
           <Switch
             value={settings.lockEnabled}
-            onValueChange={(on) => setSetting('lockEnabled', on)}
+            onValueChange={(on) => void lock.setEnabled(on)}
             trackColor={{ true: theme.accent }}
-            accessibilityLabel="Face ID lock"
+            accessibilityLabel={`Lock with ${lock.method}`}
           />
         </Row>
-        <Row>
-          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Lock</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Lock ${settings.lockScope === 'app' ? 'the whole app' : 'Journal and Finance'}, tap to change`}
-            onPress={() => setSetting('lockScope', settings.lockScope === 'app' ? 'private' : 'app')}>
-            <Text style={{ color: theme.accentText, fontSize: Type.body }}>
-              {settings.lockScope === 'app' ? 'Whole app' : 'Journal and Finance'}
-            </Text>
-          </Pressable>
-        </Row>
+        {settings.lockEnabled ? (
+          <View style={{ padding: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
+            <View style={[styles.segment, { backgroundColor: theme.fill }]}>
+              {LOCK_SCOPES.map((o) => {
+                const selected = settings.lockScope === o.value;
+                return (
+                  <Pressable
+                    key={o.value}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => {
+                      if (selected) return;
+                      haptic('select');
+                      void lock.setScope(o.value);
+                    }}
+                    style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
+                    <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>{o.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
       </Card>
       <Text style={[styles.footnote, { color: theme.ink2 }]}>
-        Your data stays on your devices and in your own iCloud. Nobody at Clancy can see it.
+        {settings.lockEnabled
+          ? settings.lockScope === 'app'
+            ? `plancy asks for ${lock.method} when it opens and whenever you come back to it.`
+            : `Journal and Finance ask for ${lock.method} before they show anything. Today and Ideas stay open.`
+          : 'Your data stays on your devices and in your own iCloud. Nobody at Clancy can see it.'}
       </Text>
 
       {TEST_TOOLS ? (

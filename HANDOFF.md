@@ -220,9 +220,11 @@ chime (assets/sounds/plancy-morning.wav, synthesised), context headline,
 first three tasks, "See my day" / "Add a task" buttons, and Settings → Send a
 preview (`plancy://settings?preview=nudge` in test builds); launch screen is
 a plain page in plancy's light/dark ground and dissolves into the first frame
-(no Expo logo); unknown links redirect to Today. App icon: four directions
-shown to Jacky (A "p.", B the dot, C tick, D progress dots); still the Expo
-template icon until he picks.
+(no Expo logo); unknown links redirect to Today. App icon: Jacky chose 4e, the
+all-accent p with a tick cut out of its bowl on a violet-washed ground
+(`assets/icon/plancy-{light,dark,tinted}.png`, drawn by
+`scripts/draw-icon.swift`; the Expo template icon is gone). The icon is
+always Clancy violet: iOS icons can't follow the in-app accent.
 
 Also 16 Sep, second round from Jacky's phone test: Face ID reworked (scope
 changes apply at once, one unlock per session, relock on background, privacy

@@ -1,5 +1,8 @@
 # plancy. — project notes
 
+New to this project? Read `HANDOFF.md` first: it carries the decisions, the
+App Store status and what comes next.
+
 Native iOS rebuild of Jacky's Daily Planner web app (`~/daily-planner`), sold
 on the App Store by Clancy Sdn Bhd. iOS only. Expo SDK 57, Expo Router with
 native tabs, TypeScript, SQLite on the device. No accounts, no server.

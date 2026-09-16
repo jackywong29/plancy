@@ -23,7 +23,8 @@ export PLANCY_PHONE=1
 export PLANCY_TEAM=TN5SQM7946
 IPHONE=00008150-000A41D1116A401C
 BUNDLE=com.clancyhq.plancy.dev
-DERIVED=ios/build
+# Outside ios/, which prebuild --clean deletes, so later builds reuse the cache.
+DERIVED="$HOME/.plancy-tools/phone-build"
 
 npx expo prebuild --platform ios --clean
 

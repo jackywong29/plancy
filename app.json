@@ -4,13 +4,17 @@
     "slug": "plancy",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/icon/plancy-light.png",
     "scheme": "plancy",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.clancyhq.plancy",
       "supportsTablet": false,
-      "icon": "./assets/expo.icon",
+      "icon": {
+        "light": "./assets/icon/plancy-light.png",
+        "dark": "./assets/icon/plancy-dark.png",
+        "tinted": "./assets/icon/plancy-tinted.png"
+      },
       "infoPlist": {
         "NSFaceIDUsageDescription": "Unlock plancy with Face ID.",
         "ITSAppUsesNonExemptEncryption": false

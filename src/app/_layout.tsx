@@ -44,7 +44,7 @@ function Shell() {
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen
           name="task"
-          options={{ presentation: 'formSheet', sheetAllowedDetents: [0.92], sheetGrabberVisible: true, headerShadowVisible: false }}
+          options={{ presentation: 'modal', headerShadowVisible: false }}
         />
       </Stack>
     </>

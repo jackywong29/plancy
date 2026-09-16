@@ -89,7 +89,11 @@ export default function TaskSheet() {
           ),
         }}
       />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: Space.gutter, paddingTop: 12, paddingBottom: 40 }} keyboardDismissMode="interactive">
+      <ScrollView
+        style={{ flex: 1 }}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ paddingHorizontal: Space.gutter, paddingTop: 12, paddingBottom: 40 }}
+        keyboardDismissMode="interactive">
         <Card>
           <TextInput
             value={title}

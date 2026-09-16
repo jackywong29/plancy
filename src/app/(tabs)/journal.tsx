@@ -22,6 +22,7 @@ export default function JournalScreen() {
   const [date, setDate] = useState(today);
   const entry = journal.find((e) => e.date === date);
   const [body, setBody] = useState(entry?.body ?? '');
+  const [query, setQuery] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Opening another day loads that day's text; it must not carry over.
@@ -38,6 +39,8 @@ export default function JournalScreen() {
   const words = body.trim() ? body.trim().split(/\s+/).length : 0;
   const isToday = date === today;
   const past = journal.filter((e) => e.body.trim());
+  const needle = query.trim().toLowerCase();
+  const found = needle ? past.filter((e) => e.body.toLowerCase().includes(needle)) : past;
 
   return (
     <Screen>
@@ -130,12 +133,29 @@ export default function JournalScreen() {
         </View>
       </Card>
 
-      <SectionHead title="Past entries" />
+      <SectionHead title="Past entries" trailing={needle ? `${found.length} of ${past.length}` : undefined} />
+      {past.length > 0 ? (
+        <View style={[styles.search, { backgroundColor: theme.card }]}>
+          <Icon name="magnifyingglass" size={16} color={theme.ink3} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search your journal"
+            placeholderTextColor={theme.ink3}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            accessibilityLabel="Search your journal"
+            style={{ flex: 1, color: theme.ink, fontSize: Type.body, paddingVertical: 9 }}
+          />
+        </View>
+      ) : null}
       {past.length === 0 ? (
         <Empty title="No entries yet" body="Write a line about today. Tomorrow it will be worth having." />
+      ) : found.length === 0 ? (
+        <Empty title="No entries match" body={`Nothing in your journal mentions "${query.trim()}".`} />
       ) : (
         <Card>
-          {past.map((e, i) => (
+          {found.map((e, i) => (
             <Row key={e.id} first={i === 0} onPress={() => setDate(e.date)} accessibilityLabel={`Open ${formatDayLong(e.date)}`}>
               <View style={{ width: 44, alignItems: 'center' }}>
                 <Text style={{ color: theme.ink, fontFamily: Type.display, fontSize: 22 }}>
@@ -165,6 +185,7 @@ export default function JournalScreen() {
 }
 
 const styles = StyleSheet.create({
+  search: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, marginBottom: 10 },
   datePill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 4, marginBottom: 10 },
   arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   warn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, padding: 12, marginBottom: 10 },

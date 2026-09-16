@@ -51,8 +51,15 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
 
 ## Not built yet
 
-Swipe actions, the add-task sheet with time wheel and repeat, recurring bills
-rolling into the next month, reminders (expo-notifications), Face ID gate
-(expo-local-authentication), iCloud sync (native CloudKit module), widgets,
-streak celebration, onboarding, import from the web planner's export file,
-localisation of strings (all UI text is English inline for now).
+Face ID gate (expo-local-authentication), iCloud sync (native CloudKit
+module), widgets, streak celebration, onboarding, import from the web
+planner's export file, editing finance entries, localisation of strings (all
+UI text is English inline for now).
+
+## Built so far
+
+Four tabs on real SQLite data; swipe to edit or delete tasks with undo; task
+sheet (native time wheel, day picker, repeat); repeat series for tasks and
+monthly bills (`src/data/repeats.ts`); reminders scheduled on the phone
+(`src/lib/reminders.ts`); journal search; finance add sheet; settings with
+appearance and the 12-colour palette.

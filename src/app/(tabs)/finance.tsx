@@ -1,7 +1,8 @@
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BigTitle, Card, Empty, Icon, Row, Screen, SectionHead, Tick } from '@/components/ui';
+import { BigTitle, Card, Empty, Icon, RoundButton, Row, Screen, SectionHead, Tick } from '@/components/ui';
 import { moneyForMonth, monthTotals, useStore } from '@/data/store';
 import type { MoneyKind } from '@/data/types';
 import { addMonths, formatMoney, formatMonthLong, isoMonth, todayIso } from '@/lib/format';
@@ -17,6 +18,7 @@ const SECTIONS: { kind: MoneyKind; title: string }[] = [
 export default function FinanceScreen() {
   const { money, settings, toggleBillPaid, deleteMoney, ensureBills } = useStore();
   const theme = useTheme();
+  const router = useRouter();
   const [month, setMonth] = useState(isoMonth(todayIso()));
 
   useEffect(() => {
@@ -34,7 +36,17 @@ export default function FinanceScreen() {
 
   return (
     <Screen>
-      <BigTitle>finance</BigTitle>
+      <BigTitle
+        actions={
+          <RoundButton
+            icon="plus"
+            label="Add entry"
+            accent
+            onPress={() => router.push({ pathname: '/money', params: { kind: 'spending', month } })}
+          />
+        }>
+        finance
+      </BigTitle>
 
       <Card style={styles.monthPill}>
         <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => setMonth(addMonths(month, -1))} style={styles.arrow}>
@@ -47,7 +59,7 @@ export default function FinanceScreen() {
       </Card>
 
       {entries.length === 0 ? (
-        <Empty title="Nothing logged this month" body="Add what came in, what went out, and the bills you owe." />
+        <Empty title="Nothing logged this month" body="Tap + to add what came in, what went out, and the bills you owe." />
       ) : (
         <>
           <Card style={{ padding: Space.gutter, gap: 12 }}>
@@ -153,6 +165,14 @@ export default function FinanceScreen() {
                       </Row>
                     );
                   })}
+                  <Row
+                    onPress={() => router.push({ pathname: '/money', params: { kind, month } })}
+                    accessibilityLabel={`Add ${title.toLowerCase()}`}>
+                    <Icon name="plus" size={16} color={theme.accentText} />
+                    <Text style={{ color: theme.accentText, fontSize: Type.body }}>
+                      Add {kind === 'bill' ? 'bill' : kind === 'income' ? 'income' : kind === 'saving' ? 'saving' : 'spending'}
+                    </Text>
+                  </Row>
                 </Card>
               </View>
             );

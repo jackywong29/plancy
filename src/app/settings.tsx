@@ -1,11 +1,12 @@
 import { ColorPicker, Host } from '@expo/ui/swift-ui';
+import { labelsHidden, opacity, scaleEffect } from '@expo/ui/swift-ui/modifiers';
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { useToast } from '@/components/toast';
-import { Card, Row, Screen, SectionHead } from '@/components/ui';
+import { Card, Icon, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { splitTime } from '@/lib/format';
@@ -117,16 +118,32 @@ export default function SettingsScreen() {
             />
           );
         })}
-        {/* Any colour at all, through the system picker. The contrast maths in
-            palette.ts keeps text readable whatever is chosen. */}
+        {/* Any colour at all, through the system picker. The circle is drawn
+            like the other swatches (filled with the custom colour once there
+            is one); the system's own colour well sits invisibly on top so a
+            tap still opens Apple's picker. palette.ts keeps text readable
+            whatever is chosen. */}
         <View
-          accessibilityLabel={custom ? `Custom colour ${settings.accent}, selected` : 'Custom colour'}
-          style={[styles.swatch, styles.customSwatch, { borderColor: custom ? theme.ink : theme.line, backgroundColor: theme.fill }]}>
+          accessible
+          accessibilityRole="button"
+          accessibilityState={{ selected: custom }}
+          accessibilityLabel={custom ? `Custom colour ${settings.accent}` : 'Pick any colour'}
+          style={[
+            styles.swatch,
+            styles.customSwatch,
+            { backgroundColor: custom ? settings.accent : theme.fill },
+            custom && { borderColor: theme.ink, borderWidth: 3 },
+          ]}>
+          <Icon name="eyedropper.halffull" size={18} color={custom ? theme.onAccent : theme.ink2} />
           <Host style={styles.customHost}>
             <ColorPicker
               selection={settings.accent}
               supportsOpacity={false}
-              onSelectionChange={(hex) => setSetting('accent', hex.slice(0, 7).toUpperCase())}
+              onSelectionChange={(hex) => {
+                haptic('select');
+                setSetting('accent', hex.slice(0, 7).toUpperCase());
+              }}
+              modifiers={[labelsHidden(), scaleEffect(1.8), opacity(0.02)]}
             />
           </Host>
         </View>
@@ -368,8 +385,8 @@ const styles = StyleSheet.create({
   segmentItem: { flex: 1, paddingVertical: 7, borderRadius: 7, alignItems: 'center' },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, padding: Space.gutter },
   swatch: { width: 44, height: 44, borderRadius: 22 },
-  customSwatch: { borderWidth: 3, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  customHost: { width: 44, height: 44 },
+  customSwatch: { overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  customHost: { position: 'absolute', top: 0, left: 0, width: 44, height: 44 },
   footnote: { fontSize: Type.footnote, marginTop: 7, marginHorizontal: Space.gutter },
   about: { alignItems: 'center', gap: 4, marginTop: 28 },
 });

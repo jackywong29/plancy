@@ -11,6 +11,7 @@ import { CelebrationProvider } from '@/components/celebration';
 import { ToastProvider } from '@/components/toast';
 import { StoreProvider, useStore } from '@/data/store';
 import { setHapticsEnabled } from '@/lib/haptics';
+import { refreshLaunchScreenCache } from '@/lib/launch-cache';
 import { AppLock, LockProvider } from '@/lib/lock';
 import { syncReminders } from '@/lib/reminders';
 import { syncWidget } from '@/lib/widget';
@@ -22,6 +23,7 @@ import { ThemeProvider, useTheme } from '@/theme/theme';
 // dissolve goes from mark to app on the same ground.
 void SplashScreen.preventAutoHideAsync();
 SplashScreen.setOptions({ duration: 350, fade: true });
+refreshLaunchScreenCache();
 
 export default function RootLayout() {
   return (

@@ -33,6 +33,8 @@ import { Card, Icon } from './ui';
 const MONTHS = 6;
 const PLOT = 116;
 const BAR = 18;
+/** Room above the plot for the gridline's value. */
+const LABEL_BAND = 16;
 
 type MonthRow = { month: string; income: number; out: number; saving: number; left: number; hasData: boolean };
 
@@ -62,12 +64,14 @@ export function CashFlow({
   const previous = rows[rows.length - 2];
   const change = previous.hasData ? current.left - previous.left : null;
 
-  // A zero line with room above for the best month and below for the worst.
-  const top = Math.max(0, ...rows.map((r) => r.left));
-  const bottom = Math.min(0, ...rows.map((r) => r.left));
+  // The scale runs from a round value at the top (the gridline, labelled in
+  // its own band above the plot so it never meets the header) down to zero,
+  // or below zero when a month was overspent.
+  const gridValue = niceCeil(Math.max(0, ...rows.map((r) => r.left)));
+  const top = gridValue;
+  const bottom = -niceCeil(-Math.min(0, ...rows.map((r) => r.left)));
   const span = top - bottom || 1;
   const zeroY = (top / span) * PLOT;
-  const gridValue = niceCeil(top);
 
   const avg = (pick: (r: MonthRow) => number) => Math.round(withData.reduce((a, r) => a + pick(r), 0) / withData.length);
   const totalIn = withData.reduce((a, r) => a + r.income, 0);
@@ -98,11 +102,12 @@ export function CashFlow({
       <View style={styles.plotWrap}>
         {/* Recessive guides: one gridline at a round value, and the zero line. */}
         {gridValue > 0 ? (
-          <View style={[styles.grid, { top: zeroY - (gridValue / span) * PLOT, borderColor: theme.line }]}>
+          <>
             <Text style={[styles.gridLabel, { color: theme.ink3 }]}>{compact(gridValue, currency)}</Text>
-          </View>
+            <View style={[styles.grid, { top: LABEL_BAND, borderColor: theme.line }]} />
+          </>
         ) : null}
-        <View style={[styles.zero, { top: zeroY, backgroundColor: theme.ink3 }]} />
+        <View style={[styles.zero, { top: LABEL_BAND + zeroY, backgroundColor: theme.ink3 }]} />
 
         <View style={styles.plot}>
           {rows.map((r, i) => {
@@ -219,9 +224,9 @@ const styles = StyleSheet.create({
   card: { padding: Space.gutter, gap: 14, marginTop: 12 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   delta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: -6 },
-  plotWrap: { position: 'relative', marginTop: 4 },
-  grid: { position: 'absolute', left: 0, right: 0, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'flex-end' },
-  gridLabel: { fontSize: 10, marginTop: 2 },
+  plotWrap: { position: 'relative', paddingTop: LABEL_BAND },
+  grid: { position: 'absolute', left: 0, right: 0, borderTopWidth: StyleSheet.hairlineWidth },
+  gridLabel: { position: 'absolute', top: 0, right: 0, fontSize: 11, lineHeight: 14 },
   zero: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth },
   plot: { flexDirection: 'row' },
   column: { flex: 1, alignItems: 'center' },

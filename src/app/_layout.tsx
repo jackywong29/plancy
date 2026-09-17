@@ -14,7 +14,7 @@ import { setHapticsEnabled } from '@/lib/haptics';
 import { refreshLaunchScreenCache } from '@/lib/launch-cache';
 import { AppLock, LockProvider } from '@/lib/lock';
 import { syncReminders } from '@/lib/reminders';
-import { syncWidget } from '@/lib/widget';
+import { useWidgetSync } from '@/lib/widget';
 import { ThemeProvider, useTheme } from '@/theme/theme';
 
 // Keep the launch screen up until plancy has drawn its first frame in the
@@ -37,14 +37,16 @@ export default function RootLayout() {
 
 /** Appearance and accent are settings, so the theme is read inside the store. */
 function Themed() {
-  const { settings, setSetting, tasks } = useStore();
+  const { settings, setSetting, tasks, setTasksDone } = useStore();
   setHapticsEnabled(settings.haptics);
 
   // Any change to tasks or reminder settings re-plans the week's alarms.
   useEffect(() => {
     void syncReminders(tasks, settings);
-    syncWidget(tasks, settings);
   }, [tasks, settings]);
+
+  // The home screen widget, including ticks made on it.
+  useWidgetSync(tasks, settings, setTasksDone);
 
   return (
     <ThemeProvider appearance={settings.appearance} accent={settings.accent}>

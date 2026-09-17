@@ -43,6 +43,8 @@ type Store = Data & {
   /** Copy last month's recurring bills into `month` if they are not there yet. */
   ensureBills: (month: string) => void;
   toggleTask: (id: string) => void;
+  /** Apply done states decided elsewhere (ticks made on the widget). */
+  setTasksDone: (changes: { id: string; done: boolean }[]) => void;
   moveTask: (id: string, date: string) => void;
   editTask: (id: string, patch: Partial<Pick<Task, 'title' | 'time' | 'repeat'>>) => void;
   deleteTask: (id: string) => void;
@@ -136,6 +138,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }),
     [],
   );
+
+  const setTasksDone = useCallback((changes: { id: string; done: boolean }[]) => {
+    const wanted = new Map(changes.map((c) => [c.id, c.done]));
+    setData((d) => ({
+      ...d,
+      tasks: d.tasks.map((t) => {
+        const done = wanted.get(t.id);
+        if (done === undefined || done === t.done) return t;
+        const next = { ...t, done, syncedAt: stamp() };
+        saveTask(next);
+        return next;
+      }),
+    }));
+  }, []);
 
   const deleteTask = useCallback((id: string) => {
     removeRecord('tasks', id);
@@ -259,6 +275,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ensureRepeats,
       ensureBills,
       toggleTask,
+      setTasksDone,
       moveTask: (id, date) => patchTask(id, { date }),
       editTask: (id, patch) => patchTask(id, patch),
       deleteTask,
@@ -274,7 +291,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteMoney,
       resetData,
     }),
-    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea, toggleBillPaid, addMoney, deleteMoney, resetData],
+    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, setTasksDone, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea, toggleBillPaid, addMoney, deleteMoney, resetData],
   );
 
   return <StoreContext value={value}>{children}</StoreContext>;

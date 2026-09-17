@@ -248,9 +248,14 @@ header for why) and shown from the first month.
    small Swift module using CloudKit's `CKSyncEngine` over the existing
    `syncedAt` + tombstones. If it isn't solid, v1 ships on-device only (still
    in the iPhone's iCloud backup) and sync moves to v1.1, keeping the date.
-2. Widgets, next step: tick a task from the widget (interactive, App Intents)
-   and a Lock Screen size. Test on the phone that App Groups work with the
-   free team (the simulator build is the first check).
+2. Widgets: interactive ticking is done (17 Sep). Each task row is a widget
+   Button whose onPress returns new props (iOS saves them, no app launch);
+   ticked ids go in `touched`, and `useWidgetSync` (src/lib/widget.ts) applies
+   them to SQLite before it ever rewrites the timeline. Tested offline by
+   evaluating ExpoWidgets.bundle in Node and by writing a pressed entry into
+   the app group plist (kill cfprefsd) and launching. Next: a Lock Screen size.
+   Launch-screen "old logo" reports: the open animation cross-fades from the
+   *icon*, and iOS's icon cache only refreshes on a phone restart.
 3. Onboarding, 2–3 screens, including import from the web planner's export
    JSON. Ask for notifications there and offer the morning nudge (it must stay
    opt-in: App Review 4.5.4 treats habit nudges as marketing).

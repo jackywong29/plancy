@@ -1,28 +1,27 @@
 /**
- * The home screen widget, in the two smallest sizes.
+ * The home screen widget, small and medium. Tick tasks right on it.
  *
- * Everything it shows arrives as props from src/lib/widget.ts, which the app
- * refreshes on every change and once a night at midnight. Code in here can
- * only use @expo/ui/swift-ui pieces and cannot reach anything outside the
- * function, which is why the layout is spelled out in full.
+ * Everything arrives as props from src/lib/widget.ts. Code in here can only
+ * use @expo/ui/swift-ui pieces and nothing declared outside this function.
  *
- * It must declare its background with containerBackground. Without one, iOS
- * replaces the whole widget with a blank "adopt containerBackground" card
- * whose tap opens a documentation link; that was the white tile.
+ * Interactive (iOS 17+): each task row is a button. Its onPress returns new
+ * props, which iOS saves and redraws with no need to open plancy. The ids
+ * ticked here are kept in `touched`; plancy applies them to its own data the
+ * next time it runs, then sends a fresh timeline.
  *
- * It must never throw. iOS draws a placeholder with no props at all (in the
- * widget gallery, and before plancy has run once), and in a release build a
- * layout that throws renders as an empty white tile. So every prop has a
- * default, and "no data yet" has its own friendly state.
+ * Rules learned the hard way:
+ * - containerBackground is required, or iOS swaps the widget for a blank card;
+ * - it must never throw (a release build draws a throwing layout as an empty
+ *   tile, and iOS's placeholder passes no props), so every prop has a default.
  *
- * `style` is the person's pick in Settings → Widget:
- *   progress  "2 of 5" done with the streak under it (default)
- *   streak    the streak count, large, for the daily hit of seeing it grow
- *   tasks     the next few tasks
- * The medium size always adds the next tasks on the right.
+ * Layout, in points (content area after the system's 16pt margins):
+ *   small  ~138 × 138   header, hero number, one line, the next task
+ *   medium ~332 × 138   a 116pt summary column, then three task rows
+ * Times sit in a fixed column on one line; titles truncate, never wrap.
  */
-import { HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
+  buttonStyle,
   containerBackground,
   font,
   foregroundColor,
@@ -31,131 +30,188 @@ import {
   minimumScaleFactor,
   opacity,
   padding,
+  strikethrough,
   widgetURL,
 } from '@expo/ui/swift-ui/modifiers';
 import { createWidget, type WidgetEnvironment } from 'expo-widgets';
 
+export type WidgetTask = { id: string; time: string; title: string; done: boolean };
+
 export type TodayWidgetProps = {
-  /** "Wed 16 Sep" */
+  /** YYYY-MM-DD this entry is for. */
+  date: string;
+  /** "Thu 17 Sep" */
   day: string;
-  done: number;
-  total: number;
-  streak: number;
-  next: { time: string; title: string }[];
+  /** Every task that day, in the order to show them (open first, then done). */
+  tasks: WidgetTask[];
+  /** Finished days in a row before this one. Today adds one once it's done. */
+  streakBefore: number;
   style: 'progress' | 'streak' | 'tasks';
-  /** Accent hex, already adjusted by the app. */
+  /** Accent, already adjusted by the app. */
   accent: string;
+  /** Tasks ticked or unticked on the widget, not yet seen by the app. */
+  touched: string[];
 };
 
 const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) => {
   'widget';
   const p = (props ?? {}) as Partial<TodayWidgetProps>;
-  const hasData = typeof p.total === 'number';
+  const tasks = Array.isArray(p.tasks) ? p.tasks.filter((t) => t && typeof t.id === 'string') : [];
+  const hasData = typeof p.date === 'string';
   const accent = typeof p.accent === 'string' && p.accent ? p.accent : '#6D5EF0';
-  const done = typeof p.done === 'number' ? p.done : 0;
-  const total = typeof p.total === 'number' ? p.total : 0;
-  const streakDays = typeof p.streak === 'number' ? p.streak : 0;
-  const next = Array.isArray(p.next) ? p.next : [];
+  const touched = Array.isArray(p.touched) ? p.touched : [];
   const style = p.style === 'streak' || p.style === 'tasks' ? p.style : 'progress';
   const medium = environment?.widgetFamily === 'systemMedium';
-  const rows = next.slice(0, medium ? 3 : 4);
-  // plancy's own card colours, so the widget looks like a piece of the app.
-  const background = containerBackground(environment?.colorScheme === 'dark' ? '#1E1D21' : '#FFFFFF', 'widget');
+  const dark = environment?.colorScheme === 'dark';
+
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.done).length;
+  const finished = total > 0 && done === total;
+  const streak = (typeof p.streakBefore === 'number' ? p.streakBefore : 0) + (finished ? 1 : 0);
+  const secondary = dark ? '#A7A2AB' : '#6E6C76';
+
+  const background = containerBackground(dark ? '#1E1D21' : '#FFFFFF', 'widget');
+
+  // A tap flips one task. Rows keep their place so nothing jumps under the finger.
+  const flip = (id: string) => () => ({
+    tasks: tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+    touched: touched.includes(id) ? touched : [...touched, id],
+  });
 
   const wordmark = (
     <HStack spacing={0}>
-      <Text modifiers={[font({ family: 'Futura-Medium', size: 15 })]}>today</Text>
-      <Text modifiers={[font({ family: 'Futura-Medium', size: 15 }), foregroundColor(accent)]}>.</Text>
-      <Spacer />
-      {p.day ? <Text modifiers={[font({ size: 12, weight: 'medium' }), opacity(0.6)]}>{p.day}</Text> : null}
+      <Text modifiers={[font({ family: 'Futura-Medium', size: 16 })]}>today</Text>
+      <Text modifiers={[font({ family: 'Futura-Medium', size: 16 }), foregroundColor(accent)]}>.</Text>
     </HStack>
   );
+
+  const row = (t: WidgetTask, showTime: boolean) => (
+    <Button key={t.id} target={`tick-${t.id}`} onPress={flip(t.id)} modifiers={[buttonStyle('plain')]}>
+      <HStack spacing={8} alignment="center">
+        <Image
+          systemName={t.done ? 'checkmark.circle.fill' : 'circle'}
+          size={19}
+          color={t.done ? accent : secondary}
+        />
+        {showTime ? (
+          <Text
+            modifiers={[
+              font({ size: 12, weight: 'semibold', design: 'rounded' }),
+              foregroundColor(secondary),
+              lineLimit(1),
+              minimumScaleFactor(0.75),
+              frame({ width: 52, alignment: 'leading' }),
+            ]}>
+            {String(t.time ?? '')}
+          </Text>
+        ) : null}
+        <Text
+          modifiers={[
+            font({ size: 14, weight: 'medium' }),
+            lineLimit(1),
+            strikethrough({ isActive: t.done, pattern: 'solid' }),
+            opacity(t.done ? 0.45 : 1),
+          ]}>
+          {String(t.title ?? '')}
+        </Text>
+        <Spacer minLength={0} />
+      </HStack>
+    </Button>
+  );
+
+  const hero =
+    style === 'streak' ? (
+      <VStack alignment="leading" spacing={0}>
+        <HStack alignment="firstTextBaseline" spacing={4}>
+          <Image systemName="flame.fill" size={24} color={accent} />
+          <Text modifiers={[font({ size: 38, weight: 'bold', design: 'rounded' })]}>{String(streak)}</Text>
+        </HStack>
+        <Text modifiers={[font({ size: 12, weight: 'medium' }), foregroundColor(secondary), lineLimit(1)]}>
+          {streak === 1 ? 'day in a row' : 'days in a row'}
+        </Text>
+      </VStack>
+    ) : (
+      <VStack alignment="leading" spacing={0}>
+        <HStack alignment="firstTextBaseline" spacing={4}>
+          <Text modifiers={[font({ size: 38, weight: 'bold', design: 'rounded' }), foregroundColor(accent)]}>{String(done)}</Text>
+          <Text modifiers={[font({ size: 16, weight: 'semibold', design: 'rounded' }), foregroundColor(secondary)]}>{`of ${total}`}</Text>
+        </HStack>
+        <HStack spacing={4}>
+          <Text modifiers={[font({ size: 12, weight: 'medium' }), foregroundColor(secondary), lineLimit(1)]}>
+            {total === 0 ? 'nothing planned' : finished ? 'all done' : 'done'}
+          </Text>
+          {streak > 0 ? <Image systemName="flame.fill" size={11} color={accent} /> : null}
+          {streak > 0 ? (
+            <Text modifiers={[font({ size: 12, weight: 'semibold' }), foregroundColor(secondary)]}>{String(streak)}</Text>
+          ) : null}
+        </HStack>
+      </VStack>
+    );
 
   if (!hasData) {
     return (
       <VStack alignment="leading" spacing={6} modifiers={[widgetURL('plancy://'), background]}>
         {wordmark}
         <Spacer minLength={0} />
-        <Image systemName="checklist" size={26} color={accent} />
-        <Text modifiers={[font({ size: 13, weight: 'semibold' })]}>Open plancy to see your day here.</Text>
+        <Text modifiers={[font({ size: 14, weight: 'semibold' })]}>Open plancy to see your day here.</Text>
         <Spacer minLength={0} />
       </VStack>
     );
   }
 
-  const progress = (
-    <VStack alignment="leading" spacing={2}>
-      <HStack alignment="firstTextBaseline" spacing={4}>
-        <Text modifiers={[font({ size: 34, weight: 'bold', design: 'rounded' }), foregroundColor(accent)]}>{String(done)}</Text>
-        <Text modifiers={[font({ size: 17, weight: 'semibold' }), opacity(0.6)]}>{`of ${total}`}</Text>
-      </HStack>
-      <Text modifiers={[font({ size: 13, weight: 'medium' }), opacity(0.6)]}>
-        {total === 0 ? 'nothing planned' : done === total ? 'all done' : 'done today'}
-      </Text>
-      {streakDays > 0 ? (
-        <HStack spacing={4} modifiers={[padding({ top: 6 })]}>
-          <Image systemName="flame.fill" size={13} color={accent} />
-          <Text modifiers={[font({ size: 13, weight: 'semibold' })]}>{`${streakDays}-day streak`}</Text>
-        </HStack>
-      ) : null}
-    </VStack>
+  const empty = (
+    <Text modifiers={[font({ size: 13, weight: 'medium' }), foregroundColor(secondary)]}>
+      {total === 0 ? 'Nothing planned. Tap to add.' : 'Everything’s done.'}
+    </Text>
   );
 
-  const streak = (
-    <VStack alignment="leading" spacing={2}>
-      <HStack alignment="firstTextBaseline" spacing={6}>
-        <Image systemName="flame.fill" size={26} color={accent} />
-        <Text modifiers={[font({ size: 40, weight: 'bold', design: 'rounded' }), foregroundColor(accent)]}>{String(streakDays)}</Text>
-      </HStack>
-      <Text modifiers={[font({ size: 13, weight: 'medium' }), opacity(0.6)]}>{streakDays === 1 ? 'day streak' : 'days in a row'}</Text>
-      <Text modifiers={[font({ size: 13, weight: 'semibold' }), padding({ top: 6 })]}>
-        {total === 0 ? 'Nothing planned today' : done === total ? 'Today is done' : `${done} of ${total} done today`}
-      </Text>
-    </VStack>
-  );
-
-  const tasks = (
-    <VStack alignment="leading" spacing={5}>
-      {rows.length === 0 ? (
-        <Text modifiers={[font({ size: 13, weight: 'medium' }), opacity(0.6)]}>
-          {total === 0 ? 'Nothing planned. Tap to add.' : 'All done for today.'}
-        </Text>
-      ) : null}
-      {rows.map((t, i) => (
-        <HStack key={String(i)} alignment="firstTextBaseline" spacing={6}>
-          <Text
-            modifiers={[
-              font({ size: 12, weight: 'semibold', design: 'rounded' }),
-              foregroundColor(accent),
-              frame({ width: 50, alignment: 'leading' }),
-            ]}>
-            {String(t?.time ?? '')}
+  if (medium) {
+    const shown = tasks.slice(0, 3);
+    const more = total - shown.length;
+    return (
+      <HStack alignment="top" spacing={16} modifiers={[widgetURL('plancy://'), background]}>
+        <VStack alignment="leading" spacing={2} modifiers={[frame({ width: 116, alignment: 'leading' })]}>
+          {wordmark}
+          <Text modifiers={[font({ size: 12, weight: 'medium' }), foregroundColor(secondary), lineLimit(1)]}>
+            {String(p.day ?? '')}
           </Text>
-          <Text modifiers={[font({ size: 13, weight: 'medium' }), lineLimit(1), minimumScaleFactor(0.85)]}>{String(t?.title ?? '')}</Text>
+          <Spacer minLength={0} />
+          {hero}
+        </VStack>
+        <VStack alignment="leading" spacing={9} modifiers={[padding({ top: 2 })]}>
+          {shown.length === 0 ? empty : shown.map((t) => row(t, true))}
+          <Spacer minLength={0} />
+          {more > 0 ? (
+            <Text modifiers={[font({ size: 11, weight: 'medium' }), foregroundColor(secondary)]}>{`${more} more in plancy`}</Text>
+          ) : null}
+        </VStack>
+      </HStack>
+    );
+  }
+
+  if (style === 'tasks') {
+    const shown = tasks.slice(0, 4);
+    return (
+      <VStack alignment="leading" spacing={8} modifiers={[widgetURL('plancy://'), background]}>
+        <HStack>
+          {wordmark}
+          <Spacer />
+          <Text modifiers={[font({ size: 12, weight: 'semibold', design: 'rounded' }), foregroundColor(secondary)]}>{`${done}/${total}`}</Text>
         </HStack>
-      ))}
-    </VStack>
-  );
+        {shown.length === 0 ? empty : shown.map((t) => row(t, false))}
+        <Spacer minLength={0} />
+      </VStack>
+    );
+  }
 
-  const main = style === 'streak' ? streak : style === 'tasks' && !medium ? tasks : progress;
-
+  const next = tasks.find((t) => !t.done) ?? tasks[0];
   return (
-    <VStack alignment="leading" spacing={8} modifiers={[widgetURL('plancy://'), background]}>
+    <VStack alignment="leading" spacing={0} modifiers={[widgetURL('plancy://'), background]}>
       {wordmark}
       <Spacer minLength={0} />
-      {medium ? (
-        <HStack alignment="top" spacing={14}>
-          {main}
-          <Spacer minLength={8} />
-          <VStack alignment="leading" spacing={6} modifiers={[frame({ width: 150 })]}>
-            <Text modifiers={[font({ size: 11, weight: 'semibold' }), opacity(0.6)]}>NEXT</Text>
-            {tasks}
-          </VStack>
-        </HStack>
-      ) : (
-        main
-      )}
+      {hero}
       <Spacer minLength={0} />
+      {next ? row(next, false) : empty}
     </VStack>
   );
 };

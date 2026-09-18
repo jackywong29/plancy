@@ -1,15 +1,20 @@
 # plancy. — handoff
 
 Paste this into a new chat, or just say "read ~/plancy/HANDOFF.md and continue".
-Written 16 Sep 2026.
+Written 16 Sep 2026, last updated 18 Sep 2026.
 
 ## What this is
 
 Jacky's Daily Planner web app (`~/daily-planner`) rebuilt as a native iPhone
 app called **plancy.**, to be sold on the App Store by his company Clancy.
-Nothing is public yet; the app runs in the simulator.
+Nothing is public yet. It runs in the simulator and on Jacky's own iPhone 17
+Pro Max, installed over the cable with his free Apple ID (see "On Jacky's
+iPhone" below). **That signing lasts 7 days: the build from 17 Sep stops
+opening around 24 Sep. Plug the phone in (or have it on the same Wi-Fi) and
+run `sh scripts/install-on-iphone.sh` to renew it; data survives.**
 
-- **Code:** `~/plancy` (git, 7 commits). Project notes live in `AGENTS.md`.
+- **Code:** `~/plancy` (git, 17 commits, all work committed). Project notes
+  live in `AGENTS.md`.
 - **Old web app:** `~/daily-planner` (git, untouched, still runs). It stays as
   the reference and keeps working until the iOS app replaces it.
 - **Launch plan:** https://claude.ai/artifact/FtoMDwzjv6KxCXDfqWZA9P
@@ -261,8 +266,32 @@ header for why) and shown from the first month.
    opt-in: App Review 4.5.4 treats habit nudges as marketing).
 4. Editing finance entries.
 5. Tune haptics and celebrations on the phone (the simulator plays no
-   haptics); widget tick from the home screen (interactive widget).
-6. Move UI text out of the code for translation (structure now, translate later).
+   haptics), from Jacky's feedback.
+6. Larger text sizes, VoiceOver and a pass on an Apple silicon Mac: reviewers
+   look, and nothing has been checked at accessibility sizes yet.
+7. App Store material that needs no Apple account: 6.9-inch screenshots,
+   listing text and keywords, and the privacy policy + support pages for
+   clancyhq.com (Claude writes, Jacky publishes).
+8. Move UI text out of the code for translation (structure now, translate later).
+
+## Waiting on Jacky (18 Sep)
+
+Checks on the phone, none of them verified by Claude:
+- Haptics: they play through `modules/plancy-haptics` (Core Haptics) because
+  expo-haptics is silent on iOS 27. Feel and timing need his ear.
+- Morning nudge: Settings → Morning nudge → **Send a preview** (arrives in 5
+  seconds, with plancy's own chime and See my day / Add a task buttons).
+- Widget: remove and re-add it, then tick a task on it and check plancy agrees.
+- Custom colour: the eyedropper circle should open Apple's picker.
+- **Restart the iPhone once.** iOS caches app icons phone-wide; until a
+  restart, notifications, Spotlight and the app-open animation still show the
+  old Expo icon, which is what the "mixed logo at launch" reports were.
+
+His own to-do list, outside the code: chase the D-U-N-S number, trademark
+check on "Plancy" (MyIPO + WIPO), add the Sdn Bhd legal name and work email to
+the clancyhq.com footer, and set up `support@clancyhq.com` in ImprovMX (only
+`jacky@clancyhq.com` → jackywong0004@gmail.com exists today; the App Store
+listing needs a support address).
 
 ## Open questions for Jacky
 

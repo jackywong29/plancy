@@ -274,15 +274,20 @@ header for why) and shown from the first month.
    clancyhq.com (Claude writes, Jacky publishes).
 8. Move UI text out of the code for translation (structure now, translate later).
 
-## Waiting on Jacky (18 Sep)
+## Confirmed on Jacky's phone (18 Sep)
 
-Checks on the phone, none of them verified by Claude:
-- Haptics: they play through `modules/plancy-haptics` (Core Haptics) because
-  expo-haptics is silent on iOS 27. Feel and timing need his ear.
+- **Haptics work** through `modules/plancy-haptics` (Core Haptics). expo-haptics
+  is silent on iOS 27, so never go back to it. Feel wasn't re-tuned, so take
+  any later "too strong / too weak" note as tuning, not breakage.
+- **Ticking on the widget works**, and plancy picks the tick up.
+- **The eyedropper colour circle works** (our swatch with Apple's colour well
+  invisible on top).
+
+## Waiting on Jacky
+
 - Morning nudge: Settings → Morning nudge → **Send a preview** (arrives in 5
-  seconds, with plancy's own chime and See my day / Add a task buttons).
-- Widget: remove and re-add it, then tick a task on it and check plancy agrees.
-- Custom colour: the eyedropper circle should open Apple's picker.
+  seconds, with plancy's own chime and See my day / Add a task buttons). Not
+  yet seen on a real phone.
 - **Restart the iPhone once.** iOS caches app icons phone-wide; until a
   restart, notifications, Spotlight and the app-open animation still show the
   old Expo icon, which is what the "mixed logo at launch" reports were.

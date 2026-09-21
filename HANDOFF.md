@@ -1,7 +1,7 @@
 # plancy. — handoff
 
 Paste this into a new chat, or just say "read ~/plancy/HANDOFF.md and continue".
-Written 16 Sep 2026, last updated 18 Sep 2026.
+Written 16 Sep 2026, last updated 20 Sep 2026.
 
 ## What this is
 
@@ -9,14 +9,19 @@ Jacky's Daily Planner web app (`~/daily-planner`) rebuilt as a native iPhone
 app called **plancy.**, to be sold on the App Store by his company Clancy.
 Nothing is public yet. It runs in the simulator and on Jacky's own iPhone 17
 Pro Max, installed over the cable with his free Apple ID (see "On Jacky's
-iPhone" below). **That signing lasts 7 days: the build from 17 Sep stops
-opening around 24 Sep. Plug the phone in (or have it on the same Wi-Fi) and
-run `sh scripts/install-on-iphone.sh` to renew it; data survives.**
+iPhone" below). **That signing lasts 7 days: build 4 went on the phone
+on 20 Sep and stops opening around 27 Sep.** Plug the phone in (or have it on
+the same Wi-Fi) and run `sh scripts/install-on-iphone.sh` to renew it; data
+survives.
 
 - **Code:** `~/plancy` (git, 17 commits, all work committed). Project notes
   live in `AGENTS.md`.
 - **Old web app:** `~/daily-planner` (git, untouched, still runs). It stays as
   the reference and keeps working until the iOS app replaces it.
+- **Specs:** `docs/` — PRD, Architecture, UX, Design System, Implementation
+  Guide, Test Spec, Release Spec. Written 18 Sep from the shipped code, so they
+  describe what plancy *is*, not what it was once meant to be. The
+  Implementation Guide carries the week-by-week plan to the 9 Nov submission.
 - **Launch plan:** https://claude.ai/artifact/FtoMDwzjv6KxCXDfqWZA9P
 - **Design draft (clickable HTML):** https://claude.ai/artifact/AtdezYxSubQXP6vgejuYTi
 
@@ -38,15 +43,22 @@ run `sh scripts/install-on-iphone.sh` to renew it; data survives.**
 
 ## Where the App Store side stands
 
-- Domain **clancyhq.com** bought on Vercel. Work email works (ImprovMX
-  forwarding into Gmail, sending via Gmail "Send mail as").
-- **D-U-N-S number requested, waiting on D&B review.** This is the only
-  blocker for Apple enrollment and reserving the name in App Store Connect.
+- **Clancy Sdn Bhd is incorporated** (confirmed 19 Sep). Contracts and the
+  App Store seller name can now be the company, not Jacky personally.
+- Domain **clancyhq.com** bought on Vercel, and it is also where Clancy HQ
+  (the CRM platform) runs in production — so plancy's privacy and support
+  pages are pages on that same site, not a separate one.
+- **`support@clancyhq.com` exists** (confirmed 19 Sep), alongside
+  `jacky@clancyhq.com`. The App Store listing needs a support address and now
+  has one.
+- **D-U-N-S: application submitted, under D&B review.** Still the only blocker
+  for Apple enrollment and for reserving the name in App Store Connect.
   Nothing in the code waits on it.
-- Still to do by Jacky: trademark check on "Plancy" (MyIPO + WIPO), add the
-  Sdn Bhd legal name and work email to the clancyhq.com site footer, then
-  enroll, accept the Paid Apps agreement, add bank/tax details, and apply to
-  the Small Business Program (15% instead of 30%).
+- Still to do by Jacky, in this order: trademark check on "Plancy" (MyIPO +
+  WIPO) **before** reserving the name; add the Sdn Bhd legal name and work
+  email to the clancyhq.com footer; then enroll, accept the Paid Apps
+  agreement, add bank/tax details, and apply to the Small Business Program
+  (15% instead of 30%).
 
 ## Running it
 
@@ -242,37 +254,268 @@ vocabulary with a toggle; day-done and streak-milestone celebrations; cash
 flow chart redesigned (single series of money left, see the component
 header for why) and shown from the first month.
 
+## On the phone: build 4 (20 Sep)
+
+`version` stays **1.0.0** and `ios.buildNumber` went 3 → 4. Two different
+numbers: the version names a *release* and is what buyers see, so it stays
+1.0.0 until v1 ships; the build number increments on every build put on a
+device, and Apple requires a fresh one for every upload. 1.1 is the first
+feature update *after* 1.0 is live, not the next thing installed.
+
+Build 4 carries everything since the 18th: the correctness fixes, the floating
+add button, bank-style amounts, the Finance colour scheme and editing,
+onboarding, the accessibility pass and the two security plugins. It also
+proved both new config plugins work in phone mode, not just the simulator.
+
+**Worth Jacky's hands, because the CLI can't drive them:** the swipe gestures
+on Finance rows, tapping through onboarding end to end, and a VoiceOver pass.
+The VoiceOver one is what blocks an honest Accessibility Nutrition Label.
+
+## Fixed 18 Sep (review pass, not yet run on a device)
+
+Three bugs found by reading the code, each reproduced before it was changed.
+Typecheck is clean; **none of this has been run in the simulator or on the
+phone yet** — `ios/` is still in phone mode.
+
+- **Monthly repeats drifted.** `src/data/repeats.ts` stepped the next date from
+  the last *clamped* date, so a task on the 31st became the 28th permanently
+  after February (31 Jan → 28 Feb → 28 Mar → 28 Apr). It now carries the
+  series' anchor day through the loop: 31 Jan → 28 Feb → 31 Mar → 30 Apr.
+- **`parseMoney` mis-read thousands separators.** `src/lib/format.ts` replaced
+  every comma with a dot, so "1,000" was stored as RM 1.00 and "1,234.56" was
+  rejected outright. It now decides which mark is the decimal point from the
+  number's own shape and the phone's locale, which also unblocks the EU
+  question ("1.000,50" used to be rejected).
+- **Chips were a ~34pt tap target.** `hitSlop` in `src/components/ui.tsx`
+  carries them to Apple's 44.
+
+Worth a look when the phone build is next renewed: a monthly task on the 31st
+over a February boundary, and typing an amount with a comma in it.
+
+## Changed 20 Sep
+
+- **The cold notification prompt is gone.** `ensurePermission` is split into
+  `hasPermission` (read-only) and `askPermission` (prompts). Scheduling only
+  ever reads, so a fresh install now reaches Today with no system prompt —
+  verified on a clean install in the simulator. Asking moved to the two
+  Settings switches, which is an explicit request; onboarding will take it
+  over. Settings also shows an **Allow notifications** row whenever reminders
+  or the nudge are on but iOS hasn't granted permission, so the switch can
+  never quietly claim something that isn't true. If permission was refused for
+  good, the row opens iPhone Settings instead.
+- **Adding moved to a floating button** at the bottom right, above the tab bar,
+  on Today and Finance — where Mail keeps Compose, and in reach of a thumb.
+  `Fab` and `FAB_CLEARANCE` are in `components/ui.tsx`; screens using it pass
+  `bottomInset={FAB_CLEARANCE}` so the last row can still be scrolled clear.
+  `Space.tabBarHeight` (the glass itself) is now separate from `Space.tabBar`
+  (that plus breathing room), because the two were being conflated.
+- **Amounts are typed the way a bank app does it.** Digits fill in from the
+  right — 1, 2, 5, 0 reads 0.01, 0.12, 1.25, 12.50 — so there's no decimal
+  point to type and no separator to get wrong. The field holds minor units,
+  which is exactly what gets stored. `formatAmount()` prints the number without
+  a currency mark, for places that already say the currency.
+- **Finance reads like a statement.** Money in and savings are green and
+  signed `+`; spending is ordinary ink; a bill turns amber as it comes due, red
+  once it's actually late, and dims when paid. Red no longer marks ordinary
+  spending, so it still means something. Green means "money kept" in the split
+  bar too, and Left took the accent. "Saving" is now "Savings" and covers
+  investments — no new kind, and nothing to migrate.
+
+## Finance entries can be edited (20 Sep)
+
+The last create-only screen is gone. `money.tsx` takes `?id=...` and opens the
+same form filled in, with **Save** in place of Add; `?kind=&month=` still opens
+a new one. Editing deliberately leaves `paid` alone — whether a bill is settled
+isn't something the form asks about, and the tick on Finance owns it. An
+entry's month doesn't change here either: moving one is rare enough not to earn
+a control.
+
+Store gained `editMoney` and `restoreMoney`, mirroring `patchTask` and
+`restoreTask`.
+
+**Finance rows are now `MoneyRow`** (`components/money-row.tsx`), built on
+`SwipeRow` like every other list: tap to open, swipe for Edit and Delete, and a
+bill's tick sits in the row. Deleting offers **Undo** — Finance used to answer
+a tap with a delete alert, which was the only place in plancy that asked "are
+you sure" instead. The colour rules live there too, next to the row that uses
+them.
+
+Verified in the simulator: the Rent bill opens with its name, RM 1,800.00, due
+day and repeat all filled in and Save enabled; the list shows paid bills
+dimmed, "Due today" in amber, and "Due in 8 days" in plain ink. **Not
+verified:** actually tapping Save, and the swipe gesture — the CLI can't send
+touches and the simulator tool still won't attach on this Mac.
+
+## Onboarding (built 20 Sep, four screens)
+
+`src/components/onboarding.tsx`, shown instead of the tab bar until
+`settings.onboarded` is true — so a new install can't wander off mid-flow.
+
+1. **plancy.** — four things, one day, a line each, and the line that actually
+   sells it: no account, nothing leaves this iPhone.
+2. **make it yours.** — accent and appearance, straight away. It costs nothing
+   and the app feels like the reader's before they've typed a word.
+3. **reminders.** — the reason first, *then* the prompt. "Turn on reminders"
+   calls `askPermission()`; "Not now" is equally easy to press and sets
+   `remind` false.
+4. **each morning.** — the nudge, on its own screen, off unless asked for.
+
+**Why the nudge has its own screen:** App Review 4.5.4 treats habit nudges as
+marketing, and bundling one into the reminder ask is the shape that gets
+flagged. Keep them apart.
+
+**Import is deliberately not here.** It only serves someone moving off the web
+planner, and it would cost every other buyer a screen they'd skip. It belongs
+in Settings → Import, which isn't built yet.
+
+Screens 3 and 4 each show a **mock of the notification they are asking
+permission for** — the reminder banner, and the nudge with its two buttons. It
+fills what was a dead band, but that isn't why it's there: the honest way to
+ask for a permission is to show what will actually arrive. The wording is
+copied from what `lib/reminders.ts` and `lib/nudges.ts` really produce, **so if
+either changes, change the preview too** — a preview that lies is worse than
+none. The preview sits in `Step`'s `feature` slot, which takes whatever height
+the copy leaves and centres in it.
+
+Verified on a clean install: all four screens render, and the run reaches Today
+with no system prompt until screen 3 asks for one.
+
+## Accessibility pass (20 Sep)
+
+Walked every screen at **310%** text (`accessibility-extra-extra-extra-large`),
+then again at the default size to prove nothing regressed. Driven from the CLI:
+
+```sh
+xcrun simctl ui booted content_size accessibility-extra-extra-extra-large
+xcrun simctl ui booted content_size large        # back to normal
+xcrun simctl ui booted increase_contrast enabled
+xcrun simctl ui booted appearance dark
+```
+
+**What broke, and why.** React Native text scales on its own, so nothing was
+missing a multiplier — every failure was a *container* that couldn't grow, or
+a row of things that had to become a column. Two rules came out of it:
+
+1. **Display type gets a cap; content type never does.** The screen titles and
+   the "left this month" figure are branding, and at 310% an uncapped 38pt
+   Futura is wider than the phone and breaks mid-word ("financ / e."). Both now
+   carry `maxFontSizeMultiplier={1.6}`. Everything that carries meaning scales
+   without a ceiling.
+2. **Side by side becomes stacked.** `useAccessibilitySize()` in
+   `components/ui.tsx` is true once `fontScale` passes 1.35, which is iOS's
+   first accessibility size.
+
+**Fixed**
+
+- **Segmented controls** rendered "Syst / em", "Ligh / t" and pushed "Dark" off
+  screen. There were four hand-rolled copies; they are now one `Segmented` in
+  `components/ui.tsx` that turns into a vertical list at accessibility sizes,
+  with proper `radiogroup`/`radio` roles it never had. Its items also got a
+  44pt minimum, which they were under before.
+- **Calendar day numbers were sliced in half** — fixed 38pt circles can't hold
+  50pt digits, and a seven-column grid can't widen. The number and the weekday
+  initial are capped at 1.35 and the circle grows with them. Nothing is lost:
+  the day's accessibility label reads the full date, uncapped.
+- **Finance's month chevron was pushed off screen** by a two-line month, so
+  there was no way to reach the next month. The label now flexes.
+- **Today's streak ran off the progress card**, and **Finance's three-column
+  Saved / Spent / Left legend ran off the card**. Both stack now.
+- **Task row's time column** was a fixed 52pt and clipped "7:00 am"; so was the
+  bill due-day field at 80pt. Both are `minWidth` now.
+- **VoiceOver**, in what was built this week: the amount field's tap-target
+  wrapper was a focusable unlabelled box (now `accessible={false}`, so focus
+  lands on the input), and the notification preview read as five loose strings
+  (now one grouped element).
+
+**Also checked:** Increase Contrast in dark mode — accent text stays legible,
+which is `accentTextFor()` holding 4.5:1 as designed. Reduce Motion is honoured
+by Reanimated's defaults and by explicit `useReducedMotion()` checks.
+
+**Not done — the one gap left.** A real **VoiceOver pass** has not happened:
+the CLI can't drive it and the simulator tool won't attach on this Mac. The
+tree is in good shape by inspection, but *completing one task per screen with
+the screen off* still needs doing on the phone. Until it is, **do not tick
+VoiceOver on the App Store Accessibility Nutrition Label** — an over-claimed
+label is worse than a blank one.
+
+## Security pass (20 Sep)
+
+Full audit in `docs/RELEASE_SPEC.md` §4b. Two of the five findings are fixed;
+two are product decisions still open; one is just a note.
+
+**Fixed — `plugins/with-widget-privacy-manifest.js`.** The widget extension
+had no `PrivacyInfo.xcprivacy`. `expo-widgets` ships none of its own and its
+`WidgetsStorage.swift` reads the app group through `UserDefaults(suiteName:)`,
+a required-reason API, from inside a bundle that declared nothing. A missing
+manifest is an automated rejection at upload, not a review note. The plugin
+writes the manifest (declaring only `CA92.1`) and gives the widget target its
+own Resources build phase, which it never had — `addResourceFile` is no use
+here because it resolves "Resources" across the whole project and would have
+bundled the file into the *app* target instead.
+
+**Fixed — `plugins/with-store-hygiene.js`.** Drops `NSSupportsLiveActivities`
+(plancy has none) from every build, and `NSAllowsLocalNetworking` from store
+builds only, since Metro needs it while developing. Build the upload with
+`PLANCY_STORE=1`; the plugin prints which mode it ran in, so a missed flag
+shows up in the prebuild output instead of in the archive.
+
+> **Both plugins are registered ahead of `expo-widgets` in app.json, and that
+> is load-bearing.** Expo runs a *later*-registered mod *earlier*, so listed
+> after expo-widgets the manifest plugin finds no widget target and fails the
+> prebuild, and the hygiene plugin deletes Info.plist keys that expo-widgets
+> then writes straight back. Verified both ways round.
+
+**Still open — two product decisions.** The Face ID lock doesn't reach the
+**widget** (task titles stay on the home screen while the app is locked) or
+**notifications** (reminders carry the task title; the nudge carries three).
+Both only diverge under the whole-app scope — under Journal & Finance, tasks
+aren't private anyway. Fixes are sketched in RELEASE_SPEC §4b.1–2 and need a
+decision about how much a locked widget should still say.
+
+**Note.** `plancy.db` uses the iOS default protection class, so the Face ID
+lock is a borrowed-phone protection, not an encryption boundary. The listing
+says "Lock your journal and finances behind Face ID", which is accurate.
+**Never let that become "encrypted" or "secure".**
+
 ## Next, in this order
 
-1. **iCloud sync** — Jacky agreed (16 Sep) it waits until the Apple
-   developer account exists, since it can't be tested before then. The
-   groundwork can start any time: deterministic ids for generated repeats
-   (`seriesId@date`) and bills (`seriesId@month`) and journal (`j-date`), so
-   two devices don't create duplicates, plus an outbox of changes.
-   The big one, and the week-2 go/no-go on the plan. Needs a
-   small Swift module using CloudKit's `CKSyncEngine` over the existing
-   `syncedAt` + tombstones. If it isn't solid, v1 ships on-device only (still
-   in the iPhone's iCloud backup) and sync moves to v1.1, keeping the date.
-2. Widgets: interactive ticking is done (17 Sep). Each task row is a widget
-   Button whose onPress returns new props (iOS saves them, no app launch);
-   ticked ids go in `touched`, and `useWidgetSync` (src/lib/widget.ts) applies
-   them to SQLite before it ever rewrites the timeline. Tested offline by
-   evaluating ExpoWidgets.bundle in Node and by writing a pressed entry into
-   the app group plist (kill cfprefsd) and launching. Next: a Lock Screen size.
-   Launch-screen "old logo" reports: the open animation cross-fades from the
-   *icon*, and iOS's icon cache only refreshes on a phone restart.
-3. Onboarding, 2–3 screens, including import from the web planner's export
-   JSON. Ask for notifications there and offer the morning nudge (it must stay
-   opt-in: App Review 4.5.4 treats habit nudges as marketing).
-4. Editing finance entries.
-5. Tune haptics and celebrations on the phone (the simulator plays no
-   haptics), from Jacky's feedback.
-6. Larger text sizes, VoiceOver and a pass on an Apple silicon Mac: reviewers
-   look, and nothing has been checked at accessibility sizes yet.
-7. App Store material that needs no Apple account: 6.9-inch screenshots,
-   listing text and keywords, and the privacy policy + support pages for
-   clancyhq.com (Claude writes, Jacky publishes).
-8. Move UI text out of the code for translation (structure now, translate later).
+**The week-by-week plan lives in `docs/IMPLEMENTATION_GUIDE.md`.** This list is
+the short version; where the two disagree, the guide is current.
+
+The order below is sequenced around the D-U-N-S block: anything needing the
+Apple developer account is deliberately late, and everything before it is
+buildable today.
+
+1. ~~Correctness pass~~ — **done 18 Sep**: monthly repeat drift, locale-aware
+   money parsing, chip tap targets. See "Fixed 18 Sep" below.
+2. **Notification permission priming.** `syncReminders` runs on mount and
+   `remind` defaults to true, so iOS asks on first launch before the user has
+   seen anything — and you only get asked once. Split it: `syncReminders`
+   schedules only against an *already granted* permission; the asking moves
+   into onboarding. The small half can land on its own, today.
+3. **Onboarding, 2–3 screens.** What plancy is; import from the web planner's
+   export JSON; then the notification ask *with the reason first*. Offer the
+   morning nudge separately and still default-off (App Review 4.5.4 treats
+   habit nudges as marketing, so never bundle the two asks).
+4. **Editing finance entries.** Create-only today, so a typo in an amount is
+   permanent. `money.tsx` already has the form — give it an `id` param and
+   prefill, the way the task sheet already does. Add swipe-to-delete with Undo
+   to match every other list.
+5. **Accessibility pass.** Largest text size, VoiceOver end to end, Reduce
+   Motion, and a look on an Apple silicon Mac. Never done, and reviewers look.
+   Expect trouble in Settings rows and the calendar's fixed 38pt day circles.
+6. **App Store material** — needs no Apple account: 6.9-inch screenshots,
+   listing text and keywords (drafted in `docs/RELEASE_SPEC.md`), and the
+   privacy + support pages for clancyhq.com (Claude writes, Jacky publishes).
+7. **iCloud sync groundwork** — deterministic ids for generated records
+   (`seriesId@date`, `seriesId@month`, `j-date`) plus an outbox. Doable now.
+   The `CKSyncEngine` module itself **cannot be tested until the developer
+   account exists**, which is why sync is no longer item 1. Go/no-go at the
+   end of week 4: if it isn't solid, v1 ships on-device only (still in the
+   iPhone's iCloud backup) and sync becomes v1.1. **The date does not move.**
+8. Tune haptics and celebrations on hardware (the simulator plays none).
+9. Lock Screen widget size (needs the account).
+10. Move UI text out of the code for translation (structure now, translate later).
 
 ## Confirmed on Jacky's phone (18 Sep)
 
@@ -283,20 +526,21 @@ header for why) and shown from the first month.
 - **The eyedropper colour circle works** (our swatch with Apple's colour well
   invisible on top).
 
+### Also confirmed 19 Sep
+
+- **The mixed logo at launch is gone** after the phone restart, as expected —
+  it was iOS's phone-wide icon cache, not our bug. The rule stands: bump
+  `ios.buildNumber` whenever the icon changes.
+- **The morning nudge preview looks right** on hardware — chime, headline and
+  both buttons. Copy and timing are settled; only the delivery hour is still a
+  setting.
+
 ## Waiting on Jacky
 
-- Morning nudge: Settings → Morning nudge → **Send a preview** (arrives in 5
-  seconds, with plancy's own chime and See my day / Add a task buttons). Not
-  yet seen on a real phone.
-- **Restart the iPhone once.** iOS caches app icons phone-wide; until a
-  restart, notifications, Spotlight and the app-open animation still show the
-  old Expo icon, which is what the "mixed logo at launch" reports were.
-
-His own to-do list, outside the code: chase the D-U-N-S number, trademark
-check on "Plancy" (MyIPO + WIPO), add the Sdn Bhd legal name and work email to
-the clancyhq.com footer, and set up `support@clancyhq.com` in ImprovMX (only
-`jacky@clancyhq.com` → jackywong0004@gmail.com exists today; the App Store
-listing needs a support address).
+Nothing on the app itself. His list is outside the code: chase the D-U-N-S
+number, and do the trademark check on "Plancy" (MyIPO + WIPO) **before** the
+name is reserved — abandoning a reserved name costs more than the hour the
+search takes. Backup name: daycy.
 
 ## Open questions for Jacky
 

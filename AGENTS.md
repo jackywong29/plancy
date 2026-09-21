@@ -1,7 +1,10 @@
 # plancy. — project notes
 
 New to this project? Read `HANDOFF.md` first: it carries the decisions, the
-App Store status and what comes next.
+App Store status and what comes next. `docs/` holds the seven specs (PRD,
+Architecture, UX, Design System, Implementation Guide, Test Spec, Release
+Spec), reverse-engineered from this code on 18 Sep — where they and the code
+disagree, the code is right and the doc is the bug.
 
 Native iOS rebuild of Jacky's Daily Planner web app (`~/daily-planner`), sold
 on the App Store by Clancy Sdn Bhd. iOS only. Expo SDK 57, Expo Router with
@@ -62,12 +65,26 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
   the navigation ThemeProvider (_layout.tsx), and `keyboardAppearance` on
   every TextInput. Sheet buttons are native bar items, not React views.
 - Swipeable rows go through `SwipeRow` (src/components/swipe-row.tsx).
+- **Don't add wrapper views between a tab screen and its `Screen`.** Native
+  tabs hand the top inset to the first scroll view they find, and the search
+  gives up after a level or two. A `<View>` wrapped around `Screen` inside
+  `PrivateLock` was enough to lose it, and the title rendered under the status
+  bar. A screen with a `Fab` puts `Screen` and `Fab` as direct siblings —
+  inside `PrivateLock` on Finance, inside one wrapper `View` on Today, which is
+  already the component's root.
 - Widget code (`widgets/`) may only use `@expo/ui/swift-ui` and nothing
   declared outside the component; all data comes in as props.
 - Notifications: 64 pending max on iOS. Reminders take up to 53, the nudge 7.
 - Haptics go through `haptic()` in src/lib/haptics.ts, fired by the handler
   that made the change (one owner per event). `Tick` itself is silent.
 - Widget layouts must never throw: default every prop (see widgets/TodayWidget.tsx).
+- **Display type is capped, content type never is.** Screen titles and the big
+  finance figure carry `maxFontSizeMultiplier={1.6}`; anything carrying meaning
+  scales without a ceiling. A fixed `width`/`height` around text is a bug — use
+  `minWidth`/`minHeight`.
+- **Rows of choices use `Segmented`** (`components/ui.tsx`), which stacks at
+  accessibility text sizes. Don't hand-roll another one. Anything else sitting
+  side by side should check `useAccessibilitySize()` and stack too.
 - Motion uses Reanimated layout animations; Reduce Motion is honoured by its
   defaults, and bespoke motion checks `useReducedMotion()`.
 

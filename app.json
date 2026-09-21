@@ -19,7 +19,7 @@
         "NSFaceIDUsageDescription": "Unlock plancy with Face ID.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "web": {
       "output": "static",
@@ -50,6 +50,8 @@
           ]
         }
       ],
+      "./plugins/with-widget-privacy-manifest.js",
+      "./plugins/with-store-hygiene.js",
       [
         "expo-widgets",
         {

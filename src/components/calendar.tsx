@@ -141,9 +141,14 @@ export function Calendar({
             selected && { backgroundColor: theme.accent },
           ]}>
           <Text
+            // Seven columns of two digits cannot widen much past a third
+            // again without the grid stopping being a grid, so the number
+            // grows to there and stops. Nothing is lost: the row's
+            // accessibility label reads the whole date, uncapped.
+            maxFontSizeMultiplier={1.35}
             style={{
               color: selected ? theme.onAccent : isToday ? theme.accentText : theme.ink,
-              fontSize: 17,
+              fontSize: Type.body,
               fontWeight: selected || isToday ? '700' : '500',
             }}>
             {Number(iso.slice(8))}
@@ -188,7 +193,7 @@ export function Calendar({
 
           <Animated.View layout={GLIDE} style={styles.week}>
             {initials.map((letter, i) => (
-              <Text key={i} style={[styles.initial, { color: theme.ink3 }]}>
+              <Text key={i} maxFontSizeMultiplier={1.35} style={[styles.initial, { color: theme.ink3 }]}>
                 {letter}
               </Text>
             ))}
@@ -230,8 +235,9 @@ const styles = StyleSheet.create({
   arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   week: { flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: -4 },
   initial: { flex: 1, textAlign: 'center', fontSize: Type.caption, marginBottom: 2 },
+  // The circle grows with the capped number instead of clipping it.
   day: { alignItems: 'center', gap: 3, paddingVertical: 2, flex: 1 },
-  dayNumber: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  dayNumber: { minWidth: 38, minHeight: 38, borderRadius: 19, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
   pips: { flexDirection: 'row', gap: 3, height: 5 },
   pip: { width: 5, height: 5, borderRadius: 2.5 },
   toggle: { alignItems: 'center', paddingVertical: 6, marginTop: 2 },

@@ -78,6 +78,6 @@ export function TaskRow({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 10, paddingHorizontal: 16 },
-  time: { width: 52 },
+  time: { minWidth: 52 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
 });

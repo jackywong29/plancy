@@ -110,24 +110,81 @@ export function deviceCurrency(): string {
 
 /* ---------- money ---------- */
 
-/** How many minor units make one unit: 100 sen to the ringgit, 0 for yen. */
+/** Decimal places this currency is written to: 2 for the ringgit, 0 for the yen. */
+export function currencyDecimals(currency: string): number {
+  return (
+    new Intl.NumberFormat(locale(), { style: 'currency', currency }).resolvedOptions()
+      .maximumFractionDigits ?? 2
+  );
+}
+
+/** How many minor units make one unit: 100 sen to the ringgit, 1 for the yen. */
 export function minorUnits(currency: string): number {
-  const digits = new Intl.NumberFormat(locale(), { style: 'currency', currency }).resolvedOptions()
-    .maximumFractionDigits;
-  return Math.pow(10, digits ?? 2);
+  return Math.pow(10, currencyDecimals(currency));
+}
+
+/**
+ * The number on its own — grouped, to the currency's own number of decimals,
+ * and with no currency mark. For places that already say which currency it is.
+ */
+export function formatAmount(minor: number, currency: string): string {
+  const digits = currencyDecimals(currency);
+  return new Intl.NumberFormat(locale(), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(minor / Math.pow(10, digits));
 }
 
 export function formatMoney(minor: number, currency: string): string {
   return new Intl.NumberFormat(locale(), { style: 'currency', currency }).format(minor / minorUnits(currency));
 }
 
-/** "12.50", "RM 12.50" and "12,50" all parse. Returns null when they don't. */
+/** The character this locale puts before the cents: "." here, "," in Germany. */
+function decimalSeparator(): string {
+  return (
+    new Intl.NumberFormat(locale()).formatToParts(1.1).find((p) => p.type === 'decimal')?.value ?? '.'
+  );
+}
+
+/**
+ * "12.50", "RM 12.50", "1,234.56" and the German "1.000,50" all parse.
+ * Returns null when they don't.
+ *
+ * Both "." and "," can mean either a decimal point or a thousands separator
+ * depending on where you are, so guessing wrongly turns 1,000 into one ringgit.
+ * When a number carries both, the LAST one is the decimal point and the other
+ * groups. When it carries only one, it groups if it repeats or if exactly three
+ * digits follow it, and otherwise it's the decimal point.
+ */
 export function parseMoney(input: string, currency: string): number | null {
-  const cleaned = input.replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
-  if (!cleaned || cleaned === '-' || cleaned === '.') return null;
-  const value = Number(cleaned);
+  const cleaned = input.replace(/[^0-9.,]/g, '');
+  if (!cleaned) return null;
+
+  const lastDot = cleaned.lastIndexOf('.');
+  const lastComma = cleaned.lastIndexOf(',');
+  let decimal = '';
+  if (lastDot >= 0 && lastComma >= 0) {
+    decimal = lastDot > lastComma ? '.' : ',';
+  } else if (lastDot >= 0 || lastComma >= 0) {
+    const only = lastDot >= 0 ? '.' : ',';
+    const at = Math.max(lastDot, lastComma);
+    const repeated = cleaned.indexOf(only) !== at;
+    const groupsThree = cleaned.length - at - 1 === 3;
+    // Three trailing digits are a thousand unless this locale writes cents
+    // that way, which none do.
+    decimal = repeated || (groupsThree && only !== decimalSeparator()) ? '' : only;
+  }
+
+  // Split at the decimal point, then strip every grouping mark from each half.
+  const cut = decimal ? cleaned.lastIndexOf(decimal) : -1;
+  const whole = (cut < 0 ? cleaned : cleaned.slice(0, cut)).replace(/[.,]/g, '');
+  const frac = cut < 0 ? '' : cleaned.slice(cut + 1).replace(/[.,]/g, '');
+  const digits = frac ? `${whole}.${frac}` : whole;
+  if (!digits) return null;
+
+  const value = Number(digits);
   if (!Number.isFinite(value)) return null;
-  return Math.round(Math.abs(value) * minorUnits(currency));
+  return Math.round(value * minorUnits(currency));
 }
 
 export const settingsDefaults = (): Settings => ({
@@ -145,4 +202,5 @@ export const settingsDefaults = (): Settings => ({
   nudgeHour: 8,
   widgetStyle: 'progress',
   calendar: 'week',
+  onboarded: false,
 });

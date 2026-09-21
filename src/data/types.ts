@@ -96,4 +96,6 @@ export type Settings = {
   widgetStyle: 'progress' | 'streak' | 'tasks';
   /** Today's calendar: the week strip, or the whole month. Remembers the last choice. */
   calendar: 'week' | 'month';
+  /** The first four screens have been through. False only on a fresh install. */
+  onboarded: boolean;
 };

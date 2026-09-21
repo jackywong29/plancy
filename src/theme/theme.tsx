@@ -75,7 +75,20 @@ export const Type = {
   caption: 12,
 } as const;
 
-export const Space = { gutter: 16, gap: 12, radius: 14, row: 48 } as const;
+export const Space = {
+  gutter: 16,
+  gap: 12,
+  radius: 14,
+  row: 48,
+  /**
+   * The floating tab bar, measured from the bottom of the screen: `tabBarHeight`
+   * is the glass itself, `tabBar` is that plus the breathing room a screen's
+   * last row wants under it. Anything parked above the bar measures from
+   * `tabBarHeight`; scrolling content pads by `tabBar`.
+   */
+  tabBarHeight: 72,
+  tabBar: 108,
+} as const;
 
 const ThemeContext = createContext<Theme>(buildTheme('light', '#6D5EF0'));
 

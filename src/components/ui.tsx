@@ -7,7 +7,16 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { haptic } from '@/lib/haptics';
@@ -15,7 +24,7 @@ import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 /** Scrolling page body. The bottom inset clears the floating tab bar. */
-export function Screen({ children, bottomInset = 110 }: { children: ReactNode; bottomInset?: number }) {
+export function Screen({ children, bottomInset = Space.tabBar }: { children: ReactNode; bottomInset?: number }) {
   const theme = useTheme();
   return (
     <ScrollView
@@ -50,7 +59,15 @@ export function BigTitle({
   return (
     <View style={{ marginBottom: 12 }}>
       <View style={styles.titleRow}>
-        <Text style={[styles.bigTitle, { color: theme.ink }]} accessibilityRole="header">
+        {/* The title is the one piece of pure branding in the app, and at the
+            largest accessibility sizes an uncapped 38pt Futura is wider than
+            the screen and breaks mid-word ("financ / e."). It still grows —
+            just not past the point where it stops being a word. Everything
+            that carries meaning scales without a cap. */}
+        <Text
+          style={[styles.bigTitle, { color: theme.ink }]}
+          maxFontSizeMultiplier={1.6}
+          accessibilityRole="header">
           {children}
           <Text style={{ color: theme.accent }}>.</Text>
         </Text>
@@ -227,6 +244,8 @@ export function Chip({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      // The pill is about 34pt tall, so the slop carries it to Apple's 44.
+      hitSlop={{ top: 5, bottom: 5 }}
       onPress={() => {
         if (!selected) haptic('select');
         onPress();
@@ -239,6 +258,110 @@ export function Chip({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+const FAB = 56;
+
+/**
+ * How far a screen's content must clear the bottom when a Fab floats over it,
+ * so the last row can always be scrolled out from under the button.
+ */
+export const FAB_CLEARANCE = Space.tabBarHeight + Space.gap + FAB + Space.gap;
+
+/**
+ * The one button a screen is really about, parked in the bottom corner above
+ * the tab bar — where Mail keeps Compose, and within reach of a thumb. Screens
+ * that use it pass `bottomInset={FAB_CLEARANCE}` to `Screen`.
+ */
+export function Fab({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: SymbolViewProps['name'];
+  label: string;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.fab,
+        {
+          backgroundColor: theme.accent,
+          shadowColor: '#000000',
+          opacity: pressed ? 0.9 : 1,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
+        },
+      ]}>
+      <Icon name={icon} size={24} color={theme.onAccent} weight="semibold" />
+    </Pressable>
+  );
+}
+
+/**
+ * True when the reader has chosen one of iOS's accessibility text sizes.
+ *
+ * `fontScale` passes 1.35 at the first of them, and layouts that put things
+ * side by side have to become layouts that stack. Using the real scale rather
+ * than a screen-width guess means it follows the setting, not the device.
+ */
+export function useAccessibilitySize(): boolean {
+  return useWindowDimensions().fontScale >= 1.35;
+}
+
+/**
+ * A row of exclusive choices, which becomes a column of them once the text is
+ * large enough that a row would have to hyphenate ("Syst / em", "Ligh / t").
+ * Every screen that offered a choice had its own copy of this; they are all
+ * this one now, so the reflow only had to be written once.
+ */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  label?: string;
+}) {
+  const theme = useTheme();
+  const stacked = useAccessibilitySize();
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={[styles.segment, { backgroundColor: theme.fill }, stacked && styles.segmentStacked]}>
+      {options.map((o) => {
+        const on = value === o.value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: on, checked: on }}
+            accessibilityLabel={o.label}
+            onPress={() => {
+              if (!on) haptic('select');
+              onChange(o.value);
+            }}
+            style={[
+              styles.segmentItem,
+              stacked && styles.segmentItemStacked,
+              on && { backgroundColor: theme.card },
+            ]}>
+            <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: on ? '600' : '500' }}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -279,4 +402,21 @@ const styles = StyleSheet.create({
   },
   roundButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999 },
+  segment: { flexDirection: 'row', borderRadius: 11, padding: 3 },
+  segmentStacked: { flexDirection: 'column' },
+  segmentItem: { flex: 1, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 9, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  segmentItemStacked: { flex: 0, alignItems: 'flex-start', paddingHorizontal: 12 },
+  fab: {
+    position: 'absolute',
+    right: Space.gutter,
+    bottom: Space.tabBarHeight + Space.gap,
+    width: FAB,
+    height: FAB,
+    borderRadius: FAB / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+  },
 });

@@ -25,12 +25,41 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function ensurePermission(): Promise<boolean> {
+/**
+ * Notification permission, split in two on purpose.
+ *
+ * iOS shows the system prompt exactly once per install. Spend it on app
+ * launch, before the person has seen what plancy does, and a "no" is
+ * permanent — the app can never ask again, and reminders are gone for good.
+ * So scheduling reads the permission and never asks; asking belongs to a
+ * moment the person chose (a switch turned on, Allow tapped in onboarding).
+ */
+
+/** Read-only. Never prompts. */
+export async function hasPermission(): Promise<boolean> {
+  return (await Notifications.getPermissionsAsync()).granted;
+}
+
+/** Ask iOS. Only ever call this from something the person just did. */
+export async function askPermission(): Promise<boolean> {
   const current = await Notifications.getPermissionsAsync();
   if (current.granted) return true;
   if (!current.canAskAgain) return false;
-  const asked = await Notifications.requestPermissionsAsync();
-  return asked.granted;
+  return (await Notifications.requestPermissionsAsync()).granted;
+}
+
+export type PermissionState =
+  /** iOS will deliver notifications. */
+  | 'granted'
+  /** Not granted yet, and iOS will still show the prompt. */
+  | 'ask'
+  /** Refused already: the prompt is spent, and only iOS Settings can undo it. */
+  | 'blocked';
+
+export async function permissionState(): Promise<PermissionState> {
+  const c = await Notifications.getPermissionsAsync();
+  if (c.granted) return 'granted';
+  return c.canAskAgain ? 'ask' : 'blocked';
 }
 
 let pending: Promise<void> = Promise.resolve();
@@ -50,7 +79,10 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
     if (n.identifier !== PREVIEW_ID) await Notifications.cancelScheduledNotificationAsync(n.identifier);
   }
   if (!settings.remind && !settings.nudge) return;
-  if (!(await ensurePermission())) return;
+  // Reads the permission, never asks for it. A new install therefore reaches
+  // the first screen without a system prompt; Settings shows the person that
+  // reminders need permission, and onboarding is where plancy asks.
+  if (!(await hasPermission())) return;
 
   const today = todayIso();
   if (settings.nudge) {
@@ -101,7 +133,8 @@ function whenEpoch(task: Task): number {
  * it as it will really arrive.
  */
 export async function previewNudge(tasks: Task[], settings: Settings, inSeconds = 5): Promise<boolean> {
-  if (!(await ensurePermission())) return false;
+  // A tap on "Send a preview" is an explicit request, so asking here is fair.
+  if (!(await askPermission())) return false;
   await ensureNudgeActions();
   const today = todayIso();
   await Notifications.cancelScheduledNotificationAsync(PREVIEW_ID).catch(() => undefined);

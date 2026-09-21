@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { CelebrationProvider } from '@/components/celebration';
+import { Onboarding } from '@/components/onboarding';
 import { ToastProvider } from '@/components/toast';
 import { StoreProvider, useStore } from '@/data/store';
 import { setHapticsEnabled } from '@/lib/haptics';
@@ -55,7 +56,9 @@ function Themed() {
           <ToastProvider>
             <AppLock>
               <CelebrationProvider>
-                <Shell />
+                {/* The first run owns the whole screen: no tab bar to wander
+                    off into, and no permission prompt until it is asked for. */}
+                {settings.onboarded ? <Shell /> : <Onboarding settings={settings} setSetting={setSetting} />}
               </CelebrationProvider>
             </AppLock>
           </ToastProvider>

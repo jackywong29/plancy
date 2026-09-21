@@ -2,17 +2,17 @@ import { ColorPicker, Host } from '@expo/ui/swift-ui';
 import { labelsHidden, opacity, scaleEffect } from '@expo/ui/swift-ui/modifiers';
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AppState, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { useToast } from '@/components/toast';
-import { Card, Icon, Row, Screen, SectionHead } from '@/components/ui';
+import { Card, Icon, Row, Screen, SectionHead, Segmented } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Settings } from '@/data/types';
 import { splitTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { useLock } from '@/lib/lock';
-import { previewNudge } from '@/lib/reminders';
+import { askPermission, permissionState, previewNudge, type PermissionState } from '@/lib/reminders';
 import { PALETTE } from '@/theme/palette';
 import { Space, Type, useTheme } from '@/theme/theme';
 
@@ -53,6 +53,44 @@ export default function SettingsScreen() {
   const router = useRouter();
   const lock = useLock();
 
+  /**
+   * What iOS actually thinks, refreshed whenever plancy comes forward — the
+   * person may have changed it in iPhone Settings while we were away.
+   * Nothing here asks on its own; see the note in lib/reminders.ts.
+   */
+  const [notify, setNotify] = useState<PermissionState>('granted');
+  const refreshNotify = useCallback(() => {
+    void permissionState().then(setNotify);
+  }, []);
+  useEffect(() => {
+    refreshNotify();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshNotify();
+    });
+    return () => sub.remove();
+  }, [refreshNotify]);
+
+  /**
+   * Turning either switch on is the person asking for notifications, which is
+   * the one moment plancy is allowed to spend iOS's single prompt.
+   */
+  async function setNotifySetting(key: 'remind' | 'nudge', on: boolean) {
+    setSetting(key, on);
+    if (!on) return;
+    await askPermission();
+    refreshNotify();
+  }
+
+  async function fixNotifications() {
+    haptic('select');
+    if (notify === 'ask') {
+      await askPermission();
+      refreshNotify();
+    } else {
+      await Linking.openSettings();
+    }
+  }
+
   async function sendPreview() {
     haptic('select');
     const ok = await previewNudge(tasks, settings);
@@ -74,26 +112,12 @@ export default function SettingsScreen() {
     <Screen bottomInset={40}>
       <SectionHead title="Appearance" />
       <Card style={{ padding: 12 }}>
-        <View style={[styles.segment, { backgroundColor: theme.fill }]}>
-          {APPEARANCES.map((a) => {
-            const selected = settings.appearance === a.value;
-            return (
-              <Pressable
-                key={a.value}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  if (!selected) haptic('select');
-                  setSetting('appearance', a.value);
-                }}
-                style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
-                <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>
-                  {a.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <Segmented
+              label="Appearance"
+              options={APPEARANCES}
+              value={settings.appearance}
+              onChange={(v) => setSetting('appearance', v)}
+            />
       </Card>
 
       <SectionHead title="Colour" />
@@ -184,12 +208,37 @@ export default function SettingsScreen() {
       </Card>
 
       <SectionHead title="Reminders" />
+      {(settings.remind || settings.nudge) && notify !== 'granted' ? (
+        <Card style={{ marginBottom: Space.gap }}>
+          <Row
+            first
+            onPress={() => void fixNotifications()}
+            accessibilityLabel={
+              notify === 'ask'
+                ? 'Allow notifications. plancy needs permission before reminders can arrive.'
+                : 'Notifications are off for plancy. Opens iPhone Settings.'
+            }>
+            <Icon name="bell.badge" size={20} color={theme.warn} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.ink, fontSize: Type.body }}>
+                {notify === 'ask' ? 'Allow notifications' : 'Notifications are off for plancy'}
+              </Text>
+              <Text style={{ color: theme.ink2, fontSize: Type.footnote }}>
+                {notify === 'ask'
+                  ? 'Nothing will arrive until you do.'
+                  : 'Turn them back on in iPhone Settings.'}
+              </Text>
+            </View>
+            <Icon name="chevron.right" size={14} color={theme.ink3} />
+          </Row>
+        </Card>
+      ) : null}
       <Card>
         <Row first>
           <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Task reminders</Text>
           <Switch
             value={settings.remind}
-            onValueChange={(on) => setSetting('remind', on)}
+            onValueChange={(on) => void setNotifySetting('remind', on)}
             trackColor={{ true: theme.accent }}
             accessibilityLabel="Task reminders"
           />
@@ -224,7 +273,7 @@ export default function SettingsScreen() {
           </View>
           <Switch
             value={settings.nudge}
-            onValueChange={(on) => setSetting('nudge', on)}
+            onValueChange={(on) => void setNotifySetting('nudge', on)}
             trackColor={{ true: theme.accent }}
             accessibilityLabel="Morning nudge"
           />
@@ -256,24 +305,12 @@ export default function SettingsScreen() {
 
       <SectionHead title="Widget" />
       <Card style={{ padding: 12 }}>
-        <View style={[styles.segment, { backgroundColor: theme.fill }]}>
-          {WIDGET_STYLES.map((w) => {
-            const selected = settings.widgetStyle === w.value;
-            return (
-              <Pressable
-                key={w.value}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                onPress={() => {
-                  if (!selected) haptic('select');
-                  setSetting('widgetStyle', w.value);
-                }}
-                style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
-                <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>{w.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <Segmented
+              label="Widget style"
+              options={WIDGET_STYLES}
+              value={settings.widgetStyle}
+              onChange={(v) => setSetting('widgetStyle', v)}
+            />
       </Card>
       <Text style={[styles.footnote, { color: theme.ink2 }]}>
         What the small widget shows. The wider one adds your next tasks beside it. Add it from the home screen: hold down, tap +, search plancy.
@@ -306,25 +343,12 @@ export default function SettingsScreen() {
         </Row>
         {settings.lockEnabled ? (
           <View style={{ padding: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
-            <View style={[styles.segment, { backgroundColor: theme.fill }]}>
-              {LOCK_SCOPES.map((o) => {
-                const selected = settings.lockScope === o.value;
-                return (
-                  <Pressable
-                    key={o.value}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => {
-                      if (selected) return;
-                      haptic('select');
-                      void lock.setScope(o.value);
-                    }}
-                    style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
-                    <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>{o.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Segmented
+              label="What Face ID locks"
+              options={LOCK_SCOPES}
+              value={settings.lockScope}
+              onChange={(v) => setSetting('lockScope', v)}
+            />
           </View>
         ) : null}
       </Card>

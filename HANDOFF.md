@@ -51,9 +51,9 @@ survives.
 - **`support@clancyhq.com` exists** (confirmed 19 Sep), alongside
   `jacky@clancyhq.com`. The App Store listing needs a support address and now
   has one.
-- **D-U-N-S: application submitted, under D&B review.** Still the only blocker
-  for Apple enrollment and for reserving the name in App Store Connect.
-  Nothing in the code waits on it.
+- **D-U-N-S: 473263782** — issued 23 Sep 2026. The long pole is gone. Apple
+  enrollment, the name reservation, TestFlight and iCloud sync are all
+  reachable now; see "Enrolment, in order" below.
 - Still to do by Jacky, in this order: trademark check on "Plancy" (MyIPO +
   WIPO) **before** reserving the name; add the Sdn Bhd legal name and work
   email to the clancyhq.com footer; then enroll, accept the Paid Apps
@@ -537,10 +537,33 @@ buildable today.
 
 ## Waiting on Jacky
 
-Nothing on the app itself. His list is outside the code: chase the D-U-N-S
-number, and do the trademark check on "Plancy" (MyIPO + WIPO) **before** the
-name is reserved — abandoning a reserved name costs more than the hour the
-search takes. Backup name: daycy.
+## Enrolment, in order (D-U-N-S in hand, 23 Sep)
+
+Do these in this order — two of them are irreversible in ways the others
+aren't.
+
+1. **Check the D&B record before touching Apple.** Look up 473263782 and confirm
+   the legal name and address D&B holds match the Sdn Bhd registration
+   *character for character*. A mismatch between the D-U-N-S record and the
+   enrolment form is the most common reason organization enrolment is
+   rejected, and fixing it afterwards means going back to D&B and waiting
+   again.
+2. **Trademark check on "Plancy"** (MyIPO + WIPO) — still before the name is
+   reserved. Abandoning a reserved name costs far more than the hour the
+   search takes. Backup name: daycy.
+3. **Add the Sdn Bhd legal name and work email to the clancyhq.com footer.**
+   Apple looks at the seller's website during organization enrolment.
+4. **Enrol in the Apple Developer Program** as an organization, using 473263782.
+   Expect Apple to take days, sometimes a couple of weeks, to verify.
+5. Reserve **Plancy: Daily Planner** in App Store Connect the hour enrolment
+   clears.
+6. Accept the **Paid Apps agreement**, add bank and tax details.
+7. **Apply to the Small Business Program** — 15% instead of 30%, and it is not
+   retroactive, so a late application costs real money on early sales.
+
+Nothing in the code waits on any of this, so the work in "Next, in this order"
+carries on in parallel. Enrolment is a queue, not a task: start it, then go
+back to the tests.
 
 ## Open questions for Jacky
 

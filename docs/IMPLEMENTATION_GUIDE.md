@@ -22,12 +22,15 @@ days. **What's left is mostly not code.**
 | ⬜ Week 3.2 — store material | Not started. Needs no Apple account. |
 | ⬜ Week 4.1–4.2 — sync groundwork | Not started. Needs no Apple account. |
 | ⬜ Tests | Still none. `TEST_SPEC` §3 lists exactly which to write. |
-| 🔒 Week 4.3, 6 — sync engine, TestFlight | Blocked on the D-U-N-S number. |
+| 🔓 Week 4.3, 6 — sync engine, TestFlight | **Unblocked 23 Sep**: D-U-N-S 473263782 issued. Reachable once Apple enrolment clears. |
 
-### What to do while the D-U-N-S is with D&B
+### What to do while Apple verifies the enrolment
 
 In this order, and none of it needs Apple:
 
+0. **Start the enrolment today.** It is a queue, not a task — Apple takes days
+   to a couple of weeks to verify an organization. Everything below runs in
+   parallel. Order and the D&B name-match warning are in `HANDOFF.md`.
 1. **App Store material** (§3.2). Screenshots, listing, and the privacy +
    support pages. On the critical path, and it was right to wait until after
    the accessibility work — those changes altered every screen, and
@@ -51,14 +54,14 @@ numbers rather than `Type` tokens. Cosmetic, and they survived the 310% pass.
 ---
 
 **Time available: ~7 weeks.** The critical path runs through one thing that is
-not in your control — the D-U-N-S number.
+not in your control — Apple's verification of the organization.
 
 ---
 
 ## 0. The gate everything else waits on
 
 ```
-D-U-N-S (D&B review, waiting)
+D-U-N-S 473263782 — ISSUED 23 Sep 2026
    └─► Apple Developer enrollment (Clancy Sdn Bhd, organization)
          ├─► Reserve "Plancy: Daily Planner" in App Store Connect
          ├─► TestFlight
@@ -67,9 +70,9 @@ D-U-N-S (D&B review, waiting)
          └─► iCloud container ──► CKSyncEngine can be tested at all
 ```
 
-**Nothing in the code waits on this.** Every item in weeks 1–3 below is
-buildable today. Chase the D-U-N-S in parallel — it is the single highest-risk
-item on the whole plan, and it is administrative, not technical.
+**Nothing in the code waits on this.** The D-U-N-S arrived on 23 Sep, so what
+remains of the gate is Apple's own verification of the organization. Start it,
+then carry on: the risk was never technical.
 
 ---
 

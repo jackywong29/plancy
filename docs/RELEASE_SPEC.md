@@ -11,16 +11,21 @@ Seller: Clancy Sdn Bhd · Price: US$4.99, paid before download · iOS only
 |---|---|---|
 | **Clancy Sdn Bhd incorporated** | **Done** — 19 Sep | The seller of record |
 | **`support@clancyhq.com`** | **Done** — 19 Sep | The listing requires a support address |
-| D-U-N-S number | **Submitted, under D&B review** | The only blocker. Chase weekly. |
-| Apple Developer Program, organization | Blocked on D-U-N-S | Sdn Bhd legal name must match the D-U-N-S record **exactly** — a mismatch is the most common enrollment rejection |
-| Reserve "Plancy: Daily Planner" | Blocked | Do this the hour enrollment completes |
-| Paid Apps agreement | Blocked | Nothing can be sold until this is accepted |
-| Bank + tax details | Blocked | Malaysian bank account, W-8BEN-E |
-| Small Business Program | Blocked | 15% instead of 30%. Apply immediately — it is not retroactive. |
+| **D-U-N-S number** | **473263782** — issued 23 Sep 2026 | The long pole is gone |
+| Apple Developer Program, organization | **Next action** | Sdn Bhd legal name must match the D-U-N-S record **exactly** — a mismatch is the most common enrollment rejection |
+| Reserve "Plancy: Daily Planner" | Waiting on enrolment | Do this the hour enrollment completes |
+| Paid Apps agreement | Waiting on enrolment | Nothing can be sold until this is accepted |
+| Bank + tax details | Waiting on enrolment | Malaysian bank account, W-8BEN-E |
+| Small Business Program | Waiting on enrolment | 15% instead of 30%. Apply immediately — it is not retroactive. |
 | **Trademark check on "Plancy"** | **Jacky, not blocked** | MyIPO + WIPO. Do this *before* reserving the name. |
 | clancyhq.com footer: Sdn Bhd legal name + work email | Jacky | Apple checks the seller's site |
 | Privacy + support pages on clancyhq.com | Jacky publishes | clancyhq.com also runs Clancy HQ, so these are pages on that site |
 
+> **Before the enrolment form: look up 473263782 at D&B and confirm the legal
+> name and address match the Sdn Bhd registration exactly.** A mismatch there
+> is the most common organization-enrolment rejection, and the fix is another
+> round trip through D&B.
+>
 > **Do the trademark check first.** Reserving a name you then have to abandon
 > costs more than the hour it takes to search. Backup name: **daycy**.
 

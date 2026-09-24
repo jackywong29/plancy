@@ -59,11 +59,14 @@
             {
               "name": "TodayWidget",
               "displayName": "Today",
-              "description": "Today's tasks, your progress and your streak.",
+              "description": "Today's tasks, your progress and your streak, on the home screen or the Lock Screen.",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",
-                  "systemMedium"
+                  "systemMedium",
+                  "accessoryInline",
+                  "accessoryCircular",
+                  "accessoryRectangular"
                 ]
               }
             }

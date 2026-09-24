@@ -1,5 +1,11 @@
 /**
- * The home screen widget, small and medium. Tick tasks right on it.
+ * The home screen widget (small, medium) and the Lock Screen widgets
+ * (inline, circular, rectangular). Tick tasks right on the home screen one.
+ *
+ * Private mode: when plancy's whole-app Face ID lock is on, `private` is true
+ * and no family shows a task name — counts, times and the streak only. The
+ * Lock Screen is readable by anyone holding the phone, and so is the home
+ * screen once it's unlocked, so a locked app mustn't leak through either.
  *
  * Everything arrives as props from src/lib/widget.ts. Code in here can only
  * use @expo/ui/swift-ui pieces and nothing declared outside this function.
@@ -19,12 +25,13 @@
  *   medium ~332 × 138   a 116pt summary column, then three task rows
  * Times sit in a fixed column on one line; titles truncate, never wrap.
  */
-import { Button, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, Gauge, HStack, Image, Spacer, Text, VStack } from '@expo/ui/swift-ui';
 import {
   buttonStyle,
   containerBackground,
   font,
   foregroundColor,
+  gaugeStyle,
   frame,
   lineLimit,
   minimumScaleFactor,
@@ -51,6 +58,8 @@ export type TodayWidgetProps = {
   accent: string;
   /** Tasks ticked or unticked on the widget, not yet seen by the app. */
   touched: string[];
+  /** The whole app is behind Face ID: show no task names anywhere. */
+  private: boolean;
 };
 
 const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) => {
@@ -61,7 +70,9 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
   const accent = typeof p.accent === 'string' && p.accent ? p.accent : '#6D5EF0';
   const touched = Array.isArray(p.touched) ? p.touched : [];
   const style = p.style === 'streak' || p.style === 'tasks' ? p.style : 'progress';
-  const medium = environment?.widgetFamily === 'systemMedium';
+  const family = environment?.widgetFamily;
+  const medium = family === 'systemMedium';
+  const hidden = p.private === true;
   const dark = environment?.colorScheme === 'dark';
 
   const total = tasks.length;
@@ -102,7 +113,7 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
               minimumScaleFactor(0.75),
               frame({ width: 52, alignment: 'leading' }),
             ]}>
-            {String(t.time ?? '')}
+            {t.time ? String(t.time) : 'anytime'}
           </Text>
         ) : null}
         <Text
@@ -148,6 +159,63 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
       </VStack>
     );
 
+  // ---- Lock Screen: drawn by iOS in one tint, so no accent and no card. ----
+  const open = tasks.filter((t) => !t.done);
+  const nextOpen = open[0];
+  const clear = containerBackground('#00000000', 'widget');
+  const streakText = streak > 0 ? `${streak}-day streak` : '';
+
+  if (family === 'accessoryInline') {
+    const line = !hasData
+      ? 'Open plancy'
+      : total === 0
+        ? 'Nothing planned today'
+        : finished
+          ? ['All done today', streakText].filter(Boolean).join(' · ')
+          : [`${open.length} left today`, streakText].filter(Boolean).join(' · ');
+    return <Text modifiers={[widgetURL('plancy://'), clear]}>{line}</Text>;
+  }
+
+  if (family === 'accessoryCircular') {
+    return (
+      <Gauge
+        value={total === 0 ? 0 : done}
+        min={0}
+        max={Math.max(total, 1)}
+        currentValueLabel={<Text modifiers={[font({ size: 14, weight: 'semibold', design: 'rounded' })]}>{`${done}/${total}`}</Text>}
+        modifiers={[gaugeStyle('circularCapacity'), widgetURL('plancy://'), clear]}>
+        <Text>plancy</Text>
+      </Gauge>
+    );
+  }
+
+  if (family === 'accessoryRectangular') {
+    const nextTime = nextOpen && nextOpen.time ? String(nextOpen.time) : '';
+    const heading = !hasData ? 'plancy' : nextOpen ? (nextTime ? `Next · ${nextTime}` : 'Next') : total === 0 ? 'Today' : 'Today · done';
+    const main = !hasData
+      ? 'Open plancy to see your day'
+      : !nextOpen
+        ? total === 0 ? 'Nothing planned' : `All ${total} done`
+        : hidden
+          ? `${open.length} ${open.length === 1 ? 'task' : 'tasks'} left`
+          : String(nextOpen.title ?? '');
+    const after = open[1];
+    const sub = !hasData || !nextOpen
+      ? streakText
+      : hidden
+        ? 'Unlock to see them'
+        : after
+          ? `then ${String(after.title ?? '')}`
+          : streakText;
+    return (
+      <VStack alignment="leading" spacing={1} modifiers={[widgetURL('plancy://'), clear]}>
+        <Text modifiers={[font({ size: 12, weight: 'medium' }), opacity(0.75), lineLimit(1)]}>{heading}</Text>
+        <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{main}</Text>
+        {sub ? <Text modifiers={[font({ size: 12 }), opacity(0.75), lineLimit(1)]}>{sub}</Text> : null}
+      </VStack>
+    );
+  }
+
   if (!hasData) {
     return (
       <VStack alignment="leading" spacing={6} modifiers={[widgetURL('plancy://'), background]}>
@@ -155,6 +223,22 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
         <Spacer minLength={0} />
         <Text modifiers={[font({ size: 14, weight: 'semibold' })]}>Open plancy to see your day here.</Text>
         <Spacer minLength={0} />
+      </VStack>
+    );
+  }
+
+  // Home screen while the whole app is locked: the hero and the next time,
+  // no names, and nothing to tick that you can't see.
+  if (hidden) {
+    return (
+      <VStack alignment="leading" spacing={0} modifiers={[widgetURL('plancy://'), background]}>
+        {wordmark}
+        <Spacer minLength={0} />
+        {hero}
+        <Spacer minLength={0} />
+        <Text modifiers={[font({ size: 12, weight: 'medium' }), foregroundColor(secondary), lineLimit(1)]}>
+          {nextOpen && nextOpen.time ? `Next at ${String(nextOpen.time)} · locked` : 'Locked'}
+        </Text>
       </VStack>
     );
   }

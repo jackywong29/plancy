@@ -116,6 +116,7 @@ function propsFor(tasks: Task[], settings: Settings, day: string, today: string)
     date: day,
     day: formatDayShort(day).replace(/,/g, ''),
     tasks: ordered.map((t) => {
+      if (t.time === '') return { id: t.id, time: '', title: t.title, done: t.done };
       const { time, suffix } = splitTime(t.time, settings.hour12);
       return { id: t.id, time: `${time}${suffix ? ` ${suffix}` : ''}`, title: t.title, done: t.done };
     }),
@@ -127,5 +128,8 @@ function propsFor(tasks: Task[], settings: Settings, day: string, today: string)
     // accent is the fair middle ground.
     accent: accentFor(settings.accent, 'light'),
     touched: [],
+    // The whole-app lock means nothing leaves the app unlocked, including
+    // task names on the Lock Screen and home screen widgets.
+    private: settings.lockEnabled && settings.lockScope === 'app',
   };
 }

@@ -17,12 +17,14 @@ import Animated, {
 
 import { Calendar } from '@/components/calendar';
 import { DotBurst, useCelebrate } from '@/components/celebration';
+import { moveActions, Sortable } from '@/components/sortable';
 import { TaskRow } from '@/components/task-row';
 import { useToast } from '@/components/toast';
 import { BigTitle, Card, Empty, Icon, RoundButton, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
 import { countsByDate, streak, tasksForDay, useStore } from '@/data/store';
 import type { Task } from '@/data/types';
 import { useAddAction } from '@/lib/add-action';
+import { isAnytime } from '@/data/order';
 import { celebrationFor } from '@/lib/celebrate';
 import { addDays, addMonths, formatDayLong, isoMonth, todayIso } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -31,7 +33,7 @@ import { Space, Type, useTheme } from '@/theme/theme';
 const GLIDE = LinearTransition.duration(280);
 
 export default function TodayScreen() {
-  const { tasks, settings, setSetting, toggleTask, deleteTask, restoreTask, ensureRepeats } = useStore();
+  const { tasks, settings, setSetting, toggleTask, deleteTask, restoreTask, ensureRepeats, reorderTasks } = useStore();
   const theme = useTheme();
   const router = useRouter();
   const toast = useToast();
@@ -50,6 +52,10 @@ export default function TodayScreen() {
   }, [day, month, settings.calendar, ensureRepeats]);
 
   const list = tasksForDay(tasks, day);
+  // Timed tasks follow the clock; anytime ones follow the order they're dragged into.
+  const timedList = list.filter((t) => !isAnytime(t));
+  const anytimeList = list.filter(isAnytime);
+  const anytimeIds = anytimeList.map((t) => t.id);
   const done = list.filter((t) => t.done).length;
   const allDone = list.length > 0 && done === list.length;
   const counts = countsByDate(tasks);
@@ -158,23 +164,52 @@ export default function TodayScreen() {
               </View>
             ) : (
               <>
-                <SectionHead title="Tasks" />
-                <Card>
-                  {list.map((task, i) => (
-                    <Animated.View key={task.id} layout={GLIDE} entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)}>
-                      <TaskRow
-                        task={task}
-                        first={i === 0}
-                        hour12={settings.hour12}
-                        onToggle={() => toggle(task)}
-                        onEdit={() => router.push({ pathname: '/task', params: { id: task.id } })}
-                        onDelete={() => remove(task.id)}
+                {timedList.length > 0 ? (
+                  <>
+                    <SectionHead title="Tasks" />
+                    <Card>
+                      {timedList.map((task, i) => (
+                        <Animated.View key={task.id} layout={GLIDE} entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)}>
+                          <TaskRow
+                            task={task}
+                            first={i === 0}
+                            hour12={settings.hour12}
+                            onToggle={() => toggle(task)}
+                            onEdit={() => router.push({ pathname: '/task', params: { id: task.id } })}
+                            onDelete={() => remove(task.id)}
+                          />
+                        </Animated.View>
+                      ))}
+                    </Card>
+                  </>
+                ) : null}
+                {anytimeList.length > 0 ? (
+                  <>
+                    <SectionHead title="Anytime" />
+                    <Card>
+                      <Sortable
+                        items={anytimeList}
+                        onReorder={reorderTasks}
+                        renderItem={(task, i, handle) => (
+                          <TaskRow
+                            task={task}
+                            first={i === 0}
+                            hour12={settings.hour12}
+                            onToggle={() => toggle(task)}
+                            onEdit={() => router.push({ pathname: '/task', params: { id: task.id } })}
+                            onDelete={() => remove(task.id)}
+                            handle={handle}
+                            moveActions={moveActions(i, anytimeList.length, anytimeIds, reorderTasks)}
+                          />
+                        )}
                       />
-                    </Animated.View>
-                  ))}
-                </Card>
+                    </Card>
+                  </>
+                ) : null}
                 <Text style={{ color: theme.ink3, fontSize: Type.footnote, textAlign: 'center', marginTop: 12 }}>
-                  Swipe a task left to edit or delete it.
+                  {anytimeList.length > 1
+                    ? 'Swipe a task left to edit or delete it. Hold ≡ to drag.'
+                    : 'Swipe a task left to edit or delete it.'}
                 </Text>
               </>
             )}

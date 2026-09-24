@@ -13,8 +13,14 @@ export type Task = {
   id: string;
   /** YYYY-MM-DD, the day this task belongs to. */
   date: string;
-  /** HH:MM in 24-hour time. Shown as 12-hour unless the reader says otherwise. */
+  /**
+   * HH:MM in 24-hour time, shown as 12-hour unless the reader says otherwise.
+   * Empty for an anytime task: one with no set time, which has no reminder and
+   * sits below the timed tasks in an order the person drags.
+   */
   time: string;
+  /** Where an anytime task sits among that day's anytime tasks; lower first. */
+  position: number;
   title: string;
   /** Free text under the title: details, a link, what to bring. Empty when there are none. */
   notes: string;

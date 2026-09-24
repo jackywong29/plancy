@@ -59,11 +59,19 @@ export function composeNudge(tasks: Task[], settings: Settings, day: string): Om
   const next = MILESTONES.find((m) => m === days + 1);
   const weekday = fromIso(day).getDay();
   const when = (t: Task) => {
+    if (t.time === '') return 'Anytime';
     const { time, suffix } = splitTime(t.time, settings.hour12);
     return `${time}${suffix ? ` ${suffix}` : ''}`;
   };
 
-  const plan = open.length === 0 ? 'Nothing planned yet' : `${open.length} planned, first at ${when(open[0])}`;
+  // Timed tasks come first in a day's order, so open[0] is the earliest
+  // timed one when there is any. A day of only anytime tasks has no "first at".
+  const plan =
+    open.length === 0
+      ? 'Nothing planned yet'
+      : open[0].time === ''
+        ? `${open.length} planned`
+        : `${open.length} planned, first at ${when(open[0])}`;
 
   let title: string;
   let subtitle = plan;

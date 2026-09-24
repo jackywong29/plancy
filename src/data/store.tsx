@@ -24,6 +24,7 @@ import {
   uid,
   writeSetting,
 } from './db';
+import { dayOrder, isAnytime, nextPosition } from './order';
 import { missingBills, upcomingRepeats } from './repeats';
 import { seedIfEmpty, seedSample } from './seed';
 import type { Idea, JournalEntry, Mood, MoneyEntry, Repeat, Settings, Task } from './types';
@@ -47,6 +48,8 @@ type Store = Data & {
   setTasksDone: (changes: { id: string; done: boolean }[]) => void;
   moveTask: (id: string, date: string) => void;
   editTask: (id: string, patch: Partial<Pick<Task, 'title' | 'notes' | 'time' | 'repeat'>>) => void;
+  /** Save a new order for a day's anytime tasks: `ids` top to bottom. */
+  reorderTasks: (ids: string[]) => void;
   deleteTask: (id: string) => void;
   restoreTask: (task: Task) => void;
   writeJournal: (date: string, patch: { body?: string; mood?: Mood }) => void;
@@ -89,9 +92,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addTask: Store['addTask'] = useCallback((input) => {
     const id = uid();
-    const task: Task = { id, seriesId: id, ...input, done: false, createdAt: stamp(), syncedAt: stamp() };
-    saveTask(task);
     setData((d) => {
+      // A new anytime task goes to the bottom of that day's anytime list.
+      const position = isAnytime(input) ? nextPosition(d.tasks, input.date) : 0;
+      const task: Task = { id, seriesId: id, ...input, position, done: false, createdAt: stamp(), syncedAt: stamp() };
+      saveTask(task);
       const tasks = [...d.tasks, task];
       const today = todayIso();
       const created = upcomingRepeats(tasks, today, addDays(today, 7)).map((t) => ({ id: uid(), ...t }));
@@ -124,6 +129,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tasks: d.tasks.map((t) => {
         if (t.id !== id) return t;
         const next = { ...t, ...patch, syncedAt: stamp() };
+        // Arriving in a day's anytime list — by losing its time or changing
+        // day — a task joins the end of it rather than jumping to the top.
+        const joined = isAnytime(next) && (!isAnytime(t) || next.date !== t.date);
+        if (joined && patch.position === undefined) {
+          next.position = nextPosition(d.tasks.filter((o) => o.id !== id), next.date);
+        }
         saveTask(next);
         return next;
       }),
@@ -149,6 +160,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const done = wanted.get(t.id);
         if (done === undefined || done === t.done) return t;
         const next = { ...t, done, syncedAt: stamp() };
+        saveTask(next);
+        return next;
+      }),
+    }));
+  }, []);
+
+  const reorderTasks = useCallback((ids: string[]) => {
+    const at = new Map(ids.map((id, i) => [id, i]));
+    setData((d) => ({
+      ...d,
+      tasks: d.tasks.map((t) => {
+        const position = at.get(t.id);
+        if (position === undefined || position === t.position) return t;
+        const next = { ...t, position, syncedAt: stamp() };
         saveTask(next);
         return next;
       }),
@@ -299,6 +324,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setTasksDone,
       moveTask: (id, date) => patchTask(id, { date }),
       editTask: (id, patch) => patchTask(id, patch),
+      reorderTasks,
       deleteTask,
       restoreTask,
       writeJournal,
@@ -314,7 +340,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreMoney,
       resetData,
     }),
-    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, setTasksDone, patchTask, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea, toggleBillPaid, addMoney, editMoney, deleteMoney, restoreMoney, resetData],
+    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, setTasksDone, patchTask, reorderTasks, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea, toggleBillPaid, addMoney, editMoney, deleteMoney, restoreMoney, resetData],
   );
 
   return <StoreContext value={value}>{children}</StoreContext>;
@@ -329,9 +355,7 @@ export function useStore(): Store {
 /* ---------- selectors ---------- */
 
 export function tasksForDay(tasks: Task[], date: string): Task[] {
-  return tasks
-    .filter((t) => t.date === date)
-    .sort((a, b) => (a.time === b.time ? a.createdAt - b.createdAt : a.time.localeCompare(b.time)));
+  return dayOrder(tasks.filter((t) => t.date === date));
 }
 
 export function countsByDate(tasks: Task[]): Map<string, { total: number; done: number }> {

@@ -10,7 +10,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
-import { Card, Chip, Row, SectionHead } from '@/components/ui';
+import { Card, Chip, Row, SectionHead, Segmented } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Repeat } from '@/data/types';
 import { addDays, formatDayShort, fromIso, isoDate, todayIso } from '@/lib/format';
@@ -36,9 +36,12 @@ export default function TaskSheet() {
   const [title, setTitle] = useState(existing?.title ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [date, setDate] = useState(existing?.date ?? params.date ?? today);
+  // Off makes it an anytime task: no time, no reminder, and a place in the
+  // list below the timed tasks that the person sets by dragging.
+  const [timed, setTimed] = useState(existing ? existing.time !== '' : true);
   const [when, setWhen] = useState<Date>(() => {
     const d = new Date();
-    if (existing) {
+    if (existing && existing.time !== '') {
       const [h, m] = existing.time.split(':').map(Number);
       d.setHours(h, m, 0, 0);
     } else {
@@ -55,7 +58,7 @@ export default function TaskSheet() {
 
   function save() {
     if (!canSave) return;
-    const time = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
+    const time = timed ? `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}` : '';
     if (existing) {
       editTask(existing.id, { title: title.trim(), notes: notes.trim(), time, repeat });
       if (date !== existing.date) moveTask(existing.id, date);
@@ -165,52 +168,62 @@ export default function TaskSheet() {
         ) : null}
 
         <SectionHead title="Time" />
-        <Card style={{ paddingVertical: 4 }}>
-          <Host matchContents>
-            <DatePicker
-              selection={when}
-              displayedComponents={['hourAndMinute']}
-              onDateChange={setWhen}
-              modifiers={[datePickerStyle('wheel'), labelsHidden()]}
+        <Card>
+          <Row first>
+            <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Set a time</Text>
+            <Switch
+              value={timed}
+              onValueChange={(on) => {
+                haptic('select');
+                setTimed(on);
+              }}
+              trackColor={{ true: theme.accent }}
+              accessibilityLabel="Set a time"
             />
-          </Host>
+          </Row>
+          {timed ? (
+            <View style={{ paddingVertical: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line }}>
+              <Host matchContents>
+                <DatePicker
+                  selection={when}
+                  displayedComponents={['hourAndMinute']}
+                  onDateChange={setWhen}
+                  modifiers={[datePickerStyle('wheel'), labelsHidden()]}
+                />
+              </Host>
+            </View>
+          ) : null}
         </Card>
+        {!timed ? (
+          <Text style={{ color: theme.ink2, fontSize: Type.footnote, marginTop: 7, marginHorizontal: Space.gutter }}>
+            Anytime tasks sit under the timed ones. Drag them into the order you want.
+          </Text>
+        ) : null}
 
         <SectionHead title="Repeat" />
         <Card style={{ padding: 12 }}>
-          <View style={[styles.segment, { backgroundColor: theme.fill }]}>
-            {REPEATS.map((r) => {
-              const selected = repeat === r.value;
-              return (
-                <Pressable
-                  key={r.label}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => setRepeat(r.value)}
-                  style={[styles.segmentItem, selected && { backgroundColor: theme.card }]}>
-                  <Text style={{ color: theme.ink, fontSize: Type.callout, fontWeight: selected ? '600' : '500' }}>
-                    {r.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Segmented label="Repeat" options={REPEATS} value={repeat} onChange={setRepeat} />
         </Card>
 
-        <Card style={{ marginTop: 20 }}>
-          <Row first>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.ink, fontSize: Type.body }}>Remind me</Text>
-              <Text style={{ color: theme.ink2, fontSize: Type.footnote }}>
-                {settings.leadMinutes === 0 ? 'At the time' : `${settings.leadMinutes} minutes before`}
-              </Text>
-            </View>
-            <Switch value={remind} onValueChange={setRemind} trackColor={{ true: theme.accent }} accessibilityLabel="Remind me" />
-          </Row>
-        </Card>
-        <Text style={{ color: theme.ink2, fontSize: Type.footnote, marginTop: 7, marginHorizontal: Space.gutter }}>
-          Reminders are scheduled on this iPhone, so they arrive with no internet.
-        </Text>
+        {/* An anytime task has no time to be reminded at. */}
+        {timed ? (
+          <>
+          <Card style={{ marginTop: 20 }}>
+            <Row first>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: theme.ink, fontSize: Type.body }}>Remind me</Text>
+                <Text style={{ color: theme.ink2, fontSize: Type.footnote }}>
+                  {settings.leadMinutes === 0 ? 'At the time' : `${settings.leadMinutes} minutes before`}
+                </Text>
+              </View>
+              <Switch value={remind} onValueChange={setRemind} trackColor={{ true: theme.accent }} accessibilityLabel="Remind me" />
+            </Row>
+          </Card>
+          <Text style={{ color: theme.ink2, fontSize: Type.footnote, marginTop: 7, marginHorizontal: Space.gutter }}>
+            Reminders are scheduled on this iPhone, so they arrive with no internet.
+          </Text>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -218,6 +231,4 @@ export default function TaskSheet() {
 
 const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 12 },
-  segment: { flexDirection: 'row', borderRadius: 9, padding: 2 },
-  segmentItem: { flex: 1, paddingVertical: 7, borderRadius: 7, alignItems: 'center' },
 });

@@ -42,7 +42,7 @@ export function TaskRow({
         { name: 'delete', label: 'Delete', icon: 'trash', background: theme.bad, ink: '#FFFFFF', onPress: onDelete },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${task.title}, ${time} ${suffix}${repeatLabel ? `, ${repeatLabel.toLowerCase()}` : ''}`}
+      accessibilityLabel={`${task.title}, ${time} ${suffix}${repeatLabel ? `, ${repeatLabel.toLowerCase()}` : ''}${task.notes ? `, notes: ${task.notes}` : ''}`}
       accessibilityHint="Opens the task"
       style={[
         styles.row,
@@ -64,6 +64,11 @@ export function TaskRow({
           }}>
           {task.title}
         </Text>
+        {task.notes ? (
+          <Text numberOfLines={1} style={{ color: theme.ink2, fontSize: Type.footnote, marginTop: 1 }}>
+            {task.notes}
+          </Text>
+        ) : null}
         {repeatLabel ? (
           <View style={styles.meta}>
             <Icon name="repeat" size={12} color={theme.ink2} />

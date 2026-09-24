@@ -37,7 +37,7 @@ type Data = { tasks: Task[]; journal: JournalEntry[]; ideas: Idea[]; money: Mone
 type Store = Data & {
   settings: Settings;
   setSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
-  addTask: (input: { date: string; time: string; title: string; repeat: Repeat }) => void;
+  addTask: (input: { date: string; time: string; title: string; notes: string; repeat: Repeat }) => void;
   /** Create the next instances of repeating tasks up to and including `through`. */
   ensureRepeats: (through: string) => void;
   /** Copy last month's recurring bills into `month` if they are not there yet. */
@@ -46,7 +46,7 @@ type Store = Data & {
   /** Apply done states decided elsewhere (ticks made on the widget). */
   setTasksDone: (changes: { id: string; done: boolean }[]) => void;
   moveTask: (id: string, date: string) => void;
-  editTask: (id: string, patch: Partial<Pick<Task, 'title' | 'time' | 'repeat'>>) => void;
+  editTask: (id: string, patch: Partial<Pick<Task, 'title' | 'notes' | 'time' | 'repeat'>>) => void;
   deleteTask: (id: string) => void;
   restoreTask: (task: Task) => void;
   writeJournal: (date: string, patch: { body?: string; mood?: Mood }) => void;

@@ -235,7 +235,7 @@ beats any record older than its `deletedAt`.
 - **Tune haptics and celebrations on hardware.** The simulator plays nothing,
   so this can only happen on the phone. Feel has never been retuned since it
   was first written — treat any "too strong / too weak" note as tuning.
-- **Lock Screen widget size** (accessory family), if the account exists.
+- **Lock Screen widgets** (accessory families). expo-widgets supports all three (circular, rectangular, inline), and they don't need the paid account. Name the account as a blocker only for the things that truly need it.
 - **Extract UI strings** into one module. Structure now, translate later. Doing
   it after launch means touching every screen twice.
 - Empty states, error copy, the version footer.

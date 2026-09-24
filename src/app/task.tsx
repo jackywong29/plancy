@@ -34,6 +34,7 @@ export default function TaskSheet() {
   const today = todayIso();
 
   const [title, setTitle] = useState(existing?.title ?? '');
+  const [notes, setNotes] = useState(existing?.notes ?? '');
   const [date, setDate] = useState(existing?.date ?? params.date ?? today);
   const [when, setWhen] = useState<Date>(() => {
     const d = new Date();
@@ -56,10 +57,10 @@ export default function TaskSheet() {
     if (!canSave) return;
     const time = `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`;
     if (existing) {
-      editTask(existing.id, { title: title.trim(), time, repeat });
+      editTask(existing.id, { title: title.trim(), notes: notes.trim(), time, repeat });
       if (date !== existing.date) moveTask(existing.id, date);
     } else {
-      addTask({ date, time, title: title.trim(), repeat });
+      addTask({ date, time, title: title.trim(), notes: notes.trim(), repeat });
     }
     haptic('saved');
     router.back();
@@ -112,7 +113,30 @@ export default function TaskSheet() {
             returnKeyType="done"
             onSubmitEditing={save}
             accessibilityLabel="Task name"
-            style={{ color: theme.ink, fontSize: 17, paddingVertical: 14, paddingHorizontal: Space.gutter }}
+            style={{ color: theme.ink, fontSize: Type.sectionTitle, paddingVertical: 14, paddingHorizontal: Space.gutter }}
+          />
+          {/* Notes share the title's card, the way Reminders keeps them
+              together: one thing, with its details underneath. */}
+          <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.line, marginLeft: Space.gutter }} />
+          <TextInput
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Notes"
+            placeholderTextColor={theme.ink3}
+            keyboardAppearance={theme.scheme}
+            multiline
+            scrollEnabled={false}
+            accessibilityLabel="Notes"
+            accessibilityHint="Details for this task"
+            style={{
+              color: theme.ink,
+              fontSize: Type.body,
+              minHeight: 88,
+              paddingTop: 12,
+              paddingBottom: 14,
+              paddingHorizontal: Space.gutter,
+              textAlignVertical: 'top',
+            }}
           />
         </Card>
 

@@ -539,6 +539,11 @@ buildable today.
 
 ## Enrolment, in order (D-U-N-S in hand, 23 Sep)
 
+> **ON HOLD since 24 Sep, by Jacky's choice.** The D-U-N-S is issued and
+> nothing is lost by waiting. He wants another round of product changes first
+> (task notes, one global add button, Siri, Lock Screen widgets, reordering).
+> Resume from step 1 below when he says so. Don't start enrolment unprompted.
+
 Do these in this order — two of them are irreversible in ways the others
 aren't.
 

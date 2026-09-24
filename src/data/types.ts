@@ -16,6 +16,8 @@ export type Task = {
   /** HH:MM in 24-hour time. Shown as 12-hour unless the reader says otherwise. */
   time: string;
   title: string;
+  /** Free text under the title: details, a link, what to bring. Empty when there are none. */
+  notes: string;
   repeat: Repeat;
   /** Groups the instances of one repeating task. Equals the first instance's id. */
   seriesId: string;

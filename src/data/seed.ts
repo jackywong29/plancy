@@ -40,7 +40,7 @@ export function seedSample(): void {
   for (const [offset, time, title, repeat, done] of tasks) {
     const id = uid();
     const seriesId = repeat ? (series.get(title) ?? (series.set(title, id), id)) : id;
-    saveTask({ id, date: iso(offset), time, title, repeat, seriesId, done, createdAt: now, syncedAt: now });
+    saveTask({ id, date: iso(offset), time, title, notes: '', repeat, seriesId, done, createdAt: now, syncedAt: now });
   }
 
   const entries: [number, string, string][] = [

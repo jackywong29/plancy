@@ -9,13 +9,14 @@ Jacky's Daily Planner web app (`~/daily-planner`) rebuilt as a native iPhone
 app called **plancy.**, to be sold on the App Store by his company Clancy.
 Nothing is public yet. It runs in the simulator and on Jacky's own iPhone 17
 Pro Max, installed over the cable with his free Apple ID (see "On Jacky's
-iPhone" below). **That signing lasts 7 days: build 4 went on the phone
-on 20 Sep and stops opening around 27 Sep.** Plug the phone in (or have it on
+iPhone" below). **That signing lasts 7 days: build 6 went on the phone
+on 24 Sep and stops opening around 1 Oct.** Plug the phone in (or have it on
 the same Wi-Fi) and run `sh scripts/install-on-iphone.sh` to renew it; data
-survives.
+survives. A renewal after a new profile may need Settings → General → VPN &
+Device Management → trust the Apple ID again.
 
-- **Code:** `~/plancy` (git, 17 commits, all work committed). Project notes
-  live in `AGENTS.md`.
+- **Code:** `~/plancy` (git, 40 commits, all work committed, no remote).
+  Project notes live in `AGENTS.md`; seven specs live in `docs/`.
 - **Old web app:** `~/daily-planner` (git, untouched, still runs). It stays as
   the reference and keeps working until the iOS app replaces it.
 - **Specs:** `docs/` — PRD, Architecture, UX, Design System, Implementation
@@ -24,6 +25,24 @@ survives.
   Implementation Guide carries the week-by-week plan to the 9 Nov submission.
 - **Launch plan:** https://claude.ai/artifact/FtoMDwzjv6KxCXDfqWZA9P
 - **Design draft (clickable HTML):** https://claude.ai/artifact/AtdezYxSubQXP6vgejuYTi
+
+## Start here — state on 24 Sep
+
+- **Every launch blocker in the code is done**: correctness fixes, onboarding
+  with permission priming, finance editing, accessibility at 310%, and a
+  security audit (privacy manifest for the widget, Info.plist hygiene).
+- **24 Sep round**, on the phone as build 6: task notes, one add button for
+  the whole app, Lock Screen widgets that hide task names while the app is
+  locked, and anytime tasks you drag into order. Details in "Round of
+  changes, 24 Sep" below.
+- **After build 6**, committed but *not yet on the phone*: the task sheet's
+  Remind me switch is now a real per-task setting. Build 7 will carry it.
+- **Apple enrolment is on hold by Jacky's choice.** The D-U-N-S (473263782)
+  is issued; resume "Enrolment, in order" below only when he says so.
+- **Waiting on Jacky's hands**, because the CLI can't touch a screen: drag
+  anytime tasks, try the add button on each tab, add a Lock Screen widget,
+  and do one VoiceOver pass.
+- **Next piece of work**: tests (see "Next, in this order").
 
 ## Decisions already made (don't re-open these)
 
@@ -51,9 +70,9 @@ survives.
 - **`support@clancyhq.com` exists** (confirmed 19 Sep), alongside
   `jacky@clancyhq.com`. The App Store listing needs a support address and now
   has one.
-- **D-U-N-S: 473263782** — issued 23 Sep 2026. The long pole is gone. Apple
-  enrollment, the name reservation, TestFlight and iCloud sync are all
-  reachable now; see "Enrolment, in order" below.
+- **D-U-N-S: 473263782** — issued 23 Sep 2026. Apple enrolment, the name
+  reservation, TestFlight and iCloud sync are all reachable, but **enrolment
+  is on hold since 24 Sep by Jacky's choice**; see "Enrolment, in order".
 - Still to do by Jacky, in this order: trademark check on "Plancy" (MyIPO +
   WIPO) **before** reserving the name; add the Sdn Bhd legal name and work
   email to the clancyhq.com footer; then enroll, accept the Paid Apps
@@ -169,6 +188,13 @@ src/components/ui.tsx      Screen, BigTitle, Card, Row, Tick, Chip, Empty, Round
 src/components/swipe-row.tsx swipeable row: tap guard after a swipe, VoiceOver actions
 src/components/task-row.tsx swipe to edit/delete (on SwipeRow)
 src/components/toast.tsx   bottom toast with one action (used for Undo)
+src/components/onboarding.tsx  four first-run screens; mock notifications on the permission asks
+src/components/money-row.tsx   finance row on SwipeRow; statement colours (amountColour)
+src/components/sortable.tsx    drag-to-reorder list (anytime tasks); Move up/down for VoiceOver
+src/lib/add-action.ts      the one add button: each tab registers useAddAction(label, action)
+src/data/order.ts          a day's order (timed by clock, anytime by position) + drag maths
+plugins/with-widget-privacy-manifest.js  widget extension's PrivacyInfo.xcprivacy (register before expo-widgets)
+plugins/with-store-hygiene.js  drops unused Info.plist keys; PLANCY_STORE=1 for the upload build
 src/data/types.ts          records; every one carries syncedAt, ready for iCloud merge
 src/data/db.ts             SQLite schema, reads/writes, tombstones, migrations
 src/data/store.tsx         in-memory store writing through to SQLite; selectors
@@ -256,8 +282,8 @@ header for why) and shown from the first month.
 
 ## Round of changes, 24 Sep (enrolment on hold meanwhile)
 
-All in the simulator and committed; **not yet on the phone** (build 5 there
-predates it).
+All committed, checked in the simulator, and **on the phone as build 6**
+(24 Sep).
 
 - **Task notes.** Under the title in the same card; the list shows the first
   line; repeats copy them.
@@ -284,10 +310,10 @@ predates it).
 screen: dragging anytime tasks (the hold, the lift, rows stepping aside, the
 drop), the add button on each tab, and adding a Lock Screen widget.
 
-**Known bug, not fixed:** the task sheet's **Remind me** switch does nothing —
-its value is never saved, so every timed task follows the global Reminders
-setting. Needs a decision: per-task reminders (a new field) or remove the
-switch.
+**Fixed after build 6:** the task sheet's **Remind me** switch used to do
+nothing. It's now a real per-task setting (`task.remind`, default on), with
+Settings → Task reminders still the master switch. Not on the phone until
+build 7.
 
 ## On the phone: build 4 (20 Sep)
 
@@ -514,43 +540,39 @@ says "Lock your journal and finances behind Face ID", which is accurate.
 
 ## Next, in this order
 
-**The week-by-week plan lives in `docs/IMPLEMENTATION_GUIDE.md`.** This list is
-the short version; where the two disagree, the guide is current.
+The week-by-week plan in `docs/IMPLEMENTATION_GUIDE.md` has a status block at
+the top; this is the short version as of 24 Sep. Items 1 to 5 of the old list
+(correctness, permission priming, onboarding, finance editing, accessibility)
+are done.
 
-The order below is sequenced around the D-U-N-S block: anything needing the
-Apple developer account is deliberately late, and everything before it is
-buildable today.
-
-1. ~~Correctness pass~~ — **done 18 Sep**: monthly repeat drift, locale-aware
-   money parsing, chip tap targets. See "Fixed 18 Sep" below.
-2. **Notification permission priming.** `syncReminders` runs on mount and
-   `remind` defaults to true, so iOS asks on first launch before the user has
-   seen anything — and you only get asked once. Split it: `syncReminders`
-   schedules only against an *already granted* permission; the asking moves
-   into onboarding. The small half can land on its own, today.
-3. **Onboarding, 2–3 screens.** What plancy is; import from the web planner's
-   export JSON; then the notification ask *with the reason first*. Offer the
-   morning nudge separately and still default-off (App Review 4.5.4 treats
-   habit nudges as marketing, so never bundle the two asks).
-4. **Editing finance entries.** Create-only today, so a typo in an amount is
-   permanent. `money.tsx` already has the form — give it an `id` param and
-   prefill, the way the task sheet already does. Add swipe-to-delete with Undo
-   to match every other list.
-5. **Accessibility pass.** Largest text size, VoiceOver end to end, Reduce
-   Motion, and a look on an Apple silicon Mac. Never done, and reviewers look.
-   Expect trouble in Settings rows and the calendar's fixed 38pt day circles.
-6. **App Store material** — needs no Apple account: 6.9-inch screenshots,
+1. **Tests.** There are still none in the repo. Two silent data bugs and one
+   drag-maths bug were each caught by a throwaway harness in this session's
+   scratchpad, not by anything that stays. Set up `jest-expo` and write what
+   `docs/TEST_SPEC.md` §3 lists, plus `data/order.ts` (dayOrder, move,
+   nextPosition, slotFor, offsetTo). Also make the offline widget render
+   (every family × real / private / empty / malformed props, "no throw, no
+   task name while private") a script in `scripts/`, since a throwing layout
+   is a blank white tile on the phone with no error.
+2. **App Store material** — needs no Apple account: 6.9-inch screenshots,
    listing text and keywords (drafted in `docs/RELEASE_SPEC.md`), and the
    privacy + support pages for clancyhq.com (Claude writes, Jacky publishes).
-7. **iCloud sync groundwork** — deterministic ids for generated records
-   (`seriesId@date`, `seriesId@month`, `j-date`) plus an outbox. Doable now.
-   The `CKSyncEngine` module itself **cannot be tested until the developer
-   account exists**, which is why sync is no longer item 1. Go/no-go at the
-   end of week 4: if it isn't solid, v1 ships on-device only (still in the
-   iPhone's iCloud backup) and sync becomes v1.1. **The date does not move.**
-8. Tune haptics and celebrations on hardware (the simulator plays none).
-9. Lock Screen widget size (needs the account).
-10. Move UI text out of the code for translation (structure now, translate later).
+   Screenshots after the 24 Sep round, since it changed Today and every tab.
+3. **iCloud sync groundwork** — deterministic ids for generated records
+   (`seriesId@date`, `seriesId@month`, `j-date`) plus an outbox. Doable now;
+   the `CKSyncEngine` module itself needs the developer account. If sync isn't
+   solid in time, v1 ships on-device only and sync becomes v1.1. **The date
+   does not move.**
+4. **Import from the web planner**, in Settings (not onboarding).
+5. **Security finding 4b.2 is still open**: notifications carry task titles
+   onto the Lock Screen even with the whole-app lock on. The widgets already
+   hide names in that case (4b.1, fixed); notifications should follow the
+   same rule — generic copy when locked. Needs Jacky's yes.
+6. Tune haptics and celebrations on hardware (the simulator plays none).
+7. Move UI text out of the code for translation (structure now, translate
+   later).
+8. **Version 1.1**: Siri via App Intents ("Add a task in plancy", "What's on
+   my plancy today?" — the widget's app-group data already has the answer),
+   and the iOS 26 glass add circle if react-native-screens adopts UITab.
 
 ## Confirmed on Jacky's phone (18 Sep)
 
@@ -607,8 +629,12 @@ back to the tests.
 
 ## Open questions for Jacky
 
-- Confirm undo-instead-of-confirm on delete.
-- Morning nudge starts off (App Review rule). Fine, or surface it in onboarding?
-- Which curated colours stay in the palette of 12.
-- EU countries at launch or later.
-- Price promo: flat $4.99, or $2.99 for the first two weeks?
+Answered since 18 Sep, and recorded where they apply: EU at launch (yes, now
+that money parsing is locale-aware), flat US$4.99 (no launch discount), the
+morning nudge offered on its own onboarding screen and off by default, undo
+instead of confirm on delete, all twelve colours stay, Siri waits for 1.1,
+anytime tasks rather than priority, Lock Screen names follow the Face ID lock.
+
+Still open:
+
+- Notifications while the whole-app lock is on (item 5 of "Next").

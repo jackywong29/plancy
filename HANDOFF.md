@@ -1,7 +1,7 @@
 # plancy. — handoff
 
 Paste this into a new chat, or just say "read ~/plancy/HANDOFF.md and continue".
-Written 16 Sep 2026, last updated 20 Sep 2026.
+Written 16 Sep 2026, last updated 24 Sep 2026.
 
 ## What this is
 
@@ -253,6 +253,41 @@ unfolds/folds from the current week with swipe and month slides; haptics
 vocabulary with a toggle; day-done and streak-milestone celebrations; cash
 flow chart redesigned (single series of money left, see the component
 header for why) and shown from the first month.
+
+## Round of changes, 24 Sep (enrolment on hold meanwhile)
+
+All in the simulator and committed; **not yet on the phone** (build 5 there
+predates it).
+
+- **Task notes.** Under the title in the same card; the list shows the first
+  line; repeats copy them.
+- **One add button for the whole app**, centred above the tab bar, rendered
+  once by `app/(tabs)/_layout.tsx`. Each tab says what "add" means with
+  `useAddAction(label, action)`. Jacky's first choice was the glass circle
+  iOS 26 puts beside the tab bar; it was tried and **doesn't work yet** —
+  react-native-screens builds tab items with the older UITabBarItem API, not
+  UISearchTab, so a search-role tab just renders as an ordinary fifth tab.
+  Revisit if the library adopts UITab.
+- **Lock Screen widgets**: a line above the clock, a progress ring, and a
+  rectangle with the next task. **While the whole-app Face ID lock is on, no
+  widget shows a task name** — which also closes security finding 4b.1. Every
+  family was rendered offline against real, private, empty and malformed
+  props (see "Widget debugging" above for the method).
+- **Anytime tasks you can drag.** "Set a time" off in the task sheet. Timed
+  tasks stay in clock order and can't be dragged; anytime ones sit under
+  their own heading with a grab handle — press, hold, drag. VoiceOver gets
+  Move up / Move down. The drag maths is in `data/order.ts` and tested.
+- **Siri**: deferred to 1.1 by Jacky's choice. App Intents would do it, via a
+  small local Swift module like `modules/plancy-haptics`.
+
+**Must be tried by hand on the phone**, because the CLI can't touch the
+screen: dragging anytime tasks (the hold, the lift, rows stepping aside, the
+drop), the add button on each tab, and adding a Lock Screen widget.
+
+**Known bug, not fixed:** the task sheet's **Remind me** switch does nothing —
+its value is never saved, so every timed task follows the global Reminders
+setting. Needs a decision: per-task reminders (a new field) or remove the
+switch.
 
 ## On the phone: build 4 (20 Sep)
 

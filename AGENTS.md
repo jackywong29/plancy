@@ -82,6 +82,11 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
   finance figure carry `maxFontSizeMultiplier={1.6}`; anything carrying meaning
   scales without a ceiling. A fixed `width`/`height` around text is a bug — use
   `minWidth`/`minHeight`.
+- **An empty `time` means an anytime task.** Anything that reads `task.time`
+  must handle `''` (no reminder, no "first at"). Order a day with
+  `dayOrder()`; timed tasks are never draggable, anytime ones keep `position`.
+- **Widgets never show a task name while the whole-app lock is on**
+  (`private` in `lib/widget.ts`). Any new widget family must honour it.
 - **There is one add button for the whole app**, centred over the tab bar and
   rendered once by `app/(tabs)/_layout.tsx`. A tab says what "add" means with
   `useAddAction(label, action)` from `lib/add-action.ts`; never give a screen

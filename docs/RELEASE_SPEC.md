@@ -196,7 +196,7 @@ worse than a blank one.
 
 ### Findings
 
-**1. The Face ID lock does not reach the widget.** *(privacy, design)*
+**1. ~~The Face ID lock does not reach the widget.~~ Fixed 24 Sep** — with the whole-app lock on, no widget of any size shows a task name. *(privacy, design)*
 With `lockScope: 'app'` the person has asked for the whole app to be locked,
 but `src/lib/widget.ts` keeps writing task titles to the app group, and the
 home screen widget keeps rendering them. Anyone holding the phone reads them

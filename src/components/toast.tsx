@@ -9,6 +9,7 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated';
 
+import { FAB_CLEARANCE } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { Type, useTheme } from '@/theme/theme';
 
@@ -81,7 +82,8 @@ export function useToast() {
 }
 
 const styles = StyleSheet.create({
-  layer: { position: 'absolute', left: 0, right: 0, bottom: 108, alignItems: 'center' },
+  // Above the add button, which sits centred over the tab bar in the same lane.
+  layer: { position: 'absolute', left: 0, right: 0, bottom: FAB_CLEARANCE, alignItems: 'center' },
   toast: {
     flexDirection: 'row',
     alignItems: 'center',

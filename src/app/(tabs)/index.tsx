@@ -19,9 +19,10 @@ import { Calendar } from '@/components/calendar';
 import { DotBurst, useCelebrate } from '@/components/celebration';
 import { TaskRow } from '@/components/task-row';
 import { useToast } from '@/components/toast';
-import { BigTitle, Card, Empty, Fab, FAB_CLEARANCE, Icon, RoundButton, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
+import { BigTitle, Card, Empty, Icon, RoundButton, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
 import { countsByDate, streak, tasksForDay, useStore } from '@/data/store';
 import type { Task } from '@/data/types';
+import { useAddAction } from '@/lib/add-action';
 import { celebrationFor } from '@/lib/celebrate';
 import { addDays, addMonths, formatDayLong, isoMonth, todayIso } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -94,95 +95,93 @@ export default function TodayScreen() {
     toast('Task deleted', { label: 'Undo', onPress: () => restoreTask(task) });
   }
 
-  const addTask = () => router.push({ pathname: '/task', params: { date: day } });
+  // The tab bar's add button makes a task on whichever day is showing.
+  useAddAction('Add task', () => router.push({ pathname: '/task', params: { date: day } }));
 
   return (
-    <View style={{ flex: 1 }}>
-      <Screen bottomInset={FAB_CLEARANCE}>
-        <LayoutAnimationConfig skipEntering>
-          <BigTitle
-            subtitle={formatDayLong(day)}
-            // Adding lives in the Fab at the bottom of the screen now, so the
-            // title line carries only Settings.
-            actions={<RoundButton icon="gearshape" label="Settings" onPress={() => router.push('/settings')} />}>
-            {title}
-          </BigTitle>
+    <Screen>
+      <LayoutAnimationConfig skipEntering>
+        <BigTitle
+          subtitle={formatDayLong(day)}
+          // Adding lives in the Fab at the bottom of the screen now, so the
+          // title line carries only Settings.
+          actions={<RoundButton icon="gearshape" label="Settings" onPress={() => router.push('/settings')} />}>
+          {title}
+        </BigTitle>
 
-          <Calendar
-            day={day}
-            today={today}
-            month={month}
-            mode={settings.calendar}
-            weekStart={settings.weekStart}
-            counts={counts}
-            onSelect={(iso) => {
-              setDay(iso);
-              setMonth(isoMonth(iso));
-            }}
-            onMonth={setMonth}
-            onMode={(mode) => setSetting('calendar', mode)}
-          />
+        <Calendar
+          day={day}
+          today={today}
+          month={month}
+          mode={settings.calendar}
+          weekStart={settings.weekStart}
+          counts={counts}
+          onSelect={(iso) => {
+            setDay(iso);
+            setMonth(isoMonth(iso));
+          }}
+          onMonth={setMonth}
+          onMode={(mode) => setSetting('calendar', mode)}
+        />
 
-          {/* Everything under the calendar glides as it opens and closes, and
-              crossfades when you pick another day. */}
-          <Animated.View layout={GLIDE}>
-            <Animated.View key={day} entering={FadeIn.duration(200)}>
-              {list.length > 0 ? (
-                <Card style={styles.progress}>
-                  {/* "2 of 5 done" and the streak sit side by side until the
-                    text is large enough that the streak would run off the
-                    card, and then one goes under the other. */}
-                <View style={[styles.progressTop, bigText && styles.progressTopStacked]}>
-                    {allDone ? (
-                      <DoneTitle title={title} celebrate={burst} />
-                    ) : (
-                      <Text style={{ color: theme.ink, fontSize: Type.sectionTitle, fontWeight: '600' }}>
-                        {done} of {list.length} done
-                      </Text>
-                    )}
-                    {days > 0 ? <Streak days={days} /> : null}
-                  </View>
-                  <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                    {list.map((t) => (
-                      <ProgressDot key={t.id} done={t.done} />
-                    ))}
-                  </View>
-                  {allDone ? <DotBurst id={burst} /> : null}
-                </Card>
-              ) : null}
-
-              {list.length === 0 ? (
-                <View style={{ marginTop: 14 }}>
-                  <Empty title="Nothing planned" body="Tap the + button to add the first thing for this day." />
+        {/* Everything under the calendar glides as it opens and closes, and
+            crossfades when you pick another day. */}
+        <Animated.View layout={GLIDE}>
+          <Animated.View key={day} entering={FadeIn.duration(200)}>
+            {list.length > 0 ? (
+              <Card style={styles.progress}>
+                {/* "2 of 5 done" and the streak sit side by side until the
+                  text is large enough that the streak would run off the
+                  card, and then one goes under the other. */}
+              <View style={[styles.progressTop, bigText && styles.progressTopStacked]}>
+                  {allDone ? (
+                    <DoneTitle title={title} celebrate={burst} />
+                  ) : (
+                    <Text style={{ color: theme.ink, fontSize: Type.sectionTitle, fontWeight: '600' }}>
+                      {done} of {list.length} done
+                    </Text>
+                  )}
+                  {days > 0 ? <Streak days={days} /> : null}
                 </View>
-              ) : (
-                <>
-                  <SectionHead title="Tasks" />
-                  <Card>
-                    {list.map((task, i) => (
-                      <Animated.View key={task.id} layout={GLIDE} entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)}>
-                        <TaskRow
-                          task={task}
-                          first={i === 0}
-                          hour12={settings.hour12}
-                          onToggle={() => toggle(task)}
-                          onEdit={() => router.push({ pathname: '/task', params: { id: task.id } })}
-                          onDelete={() => remove(task.id)}
-                        />
-                      </Animated.View>
-                    ))}
-                  </Card>
-                  <Text style={{ color: theme.ink3, fontSize: Type.footnote, textAlign: 'center', marginTop: 12 }}>
-                    Swipe a task left to edit or delete it.
-                  </Text>
-                </>
-              )}
-            </Animated.View>
+                <View style={styles.dots} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  {list.map((t) => (
+                    <ProgressDot key={t.id} done={t.done} />
+                  ))}
+                </View>
+                {allDone ? <DotBurst id={burst} /> : null}
+              </Card>
+            ) : null}
+
+            {list.length === 0 ? (
+              <View style={{ marginTop: 14 }}>
+                <Empty title="Nothing planned" body="Tap + above the tabs to add the first thing for this day." />
+              </View>
+            ) : (
+              <>
+                <SectionHead title="Tasks" />
+                <Card>
+                  {list.map((task, i) => (
+                    <Animated.View key={task.id} layout={GLIDE} entering={FadeInDown.duration(220)} exiting={FadeOut.duration(160)}>
+                      <TaskRow
+                        task={task}
+                        first={i === 0}
+                        hour12={settings.hour12}
+                        onToggle={() => toggle(task)}
+                        onEdit={() => router.push({ pathname: '/task', params: { id: task.id } })}
+                        onDelete={() => remove(task.id)}
+                      />
+                    </Animated.View>
+                  ))}
+                </Card>
+                <Text style={{ color: theme.ink3, fontSize: Type.footnote, textAlign: 'center', marginTop: 12 }}>
+                  Swipe a task left to edit or delete it.
+                </Text>
+              </>
+            )}
           </Animated.View>
-        </LayoutAnimationConfig>
-      </Screen>
-      <Fab icon="plus" label="Add task" onPress={addTask} />
-    </View>
+        </Animated.View>
+      </LayoutAnimationConfig>
+    </Screen>
   );
 }
 

@@ -24,7 +24,7 @@ import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 /** Scrolling page body. The bottom inset clears the floating tab bar. */
-export function Screen({ children, bottomInset = Space.tabBar }: { children: ReactNode; bottomInset?: number }) {
+export function Screen({ children, bottomInset = FAB_CLEARANCE }: { children: ReactNode; bottomInset?: number }) {
   const theme = useTheme();
   return (
     <ScrollView
@@ -270,9 +270,9 @@ const FAB = 56;
 export const FAB_CLEARANCE = Space.tabBarHeight + Space.gap + FAB + Space.gap;
 
 /**
- * The one button a screen is really about, parked in the bottom corner above
- * the tab bar — where Mail keeps Compose, and within reach of a thumb. Screens
- * that use it pass `bottomInset={FAB_CLEARANCE}` to `Screen`.
+ * The app's one add button, centred above the tab bar where either thumb
+ * reaches it. Rendered once, by the tabs layout; every tab's Screen already
+ * pads its bottom by FAB_CLEARANCE so the last row scrolls clear of it.
  */
 export function Fab({
   icon,
@@ -285,6 +285,7 @@ export function Fab({
 }) {
   const theme = useTheme();
   return (
+    <View pointerEvents="box-none" style={styles.fabLane}>
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -300,6 +301,7 @@ export function Fab({
       ]}>
       <Icon name={icon} size={24} color={theme.onAccent} weight="semibold" />
     </Pressable>
+    </View>
   );
 }
 
@@ -406,10 +408,8 @@ const styles = StyleSheet.create({
   segmentStacked: { flexDirection: 'column' },
   segmentItem: { flex: 1, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 9, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   segmentItemStacked: { flex: 0, alignItems: 'flex-start', paddingHorizontal: 12 },
+  fabLane: { position: 'absolute', left: 0, right: 0, bottom: Space.tabBarHeight + Space.gap, alignItems: 'center' },
   fab: {
-    position: 'absolute',
-    right: Space.gutter,
-    bottom: Space.tabBarHeight + Space.gap,
     width: FAB,
     height: FAB,
     borderRadius: FAB / 2,

@@ -82,6 +82,10 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
   finance figure carry `maxFontSizeMultiplier={1.6}`; anything carrying meaning
   scales without a ceiling. A fixed `width`/`height` around text is a bug — use
   `minWidth`/`minHeight`.
+- **There is one add button for the whole app**, centred over the tab bar and
+  rendered once by `app/(tabs)/_layout.tsx`. A tab says what "add" means with
+  `useAddAction(label, action)` from `lib/add-action.ts`; never give a screen
+  its own + button. Tab screens get the clearance from `Screen` by default.
 - **Rows of choices use `Segmented`** (`components/ui.tsx`), which stacks at
   accessibility text sizes. Don't hand-roll another one. Anything else sitting
   side by side should check `useAccessibilitySize()` and stack too.

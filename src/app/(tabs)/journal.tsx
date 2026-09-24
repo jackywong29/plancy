@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { BigTitle, Card, Empty, Icon, Row, Screen, SectionHead } from '@/components/ui';
 import { useStore } from '@/data/store';
-import { PrivateLock } from '@/lib/lock';
+import { useAddAction } from '@/lib/add-action';
+import { PrivateLock, useLock } from '@/lib/lock';
 import { haptic } from '@/lib/haptics';
 import type { Mood } from '@/data/types';
 import { addDays, formatDayLong, formatDayShort, todayIso } from '@/lib/format';
@@ -26,6 +27,14 @@ export default function JournalScreen() {
   const [body, setBody] = useState(entry?.body ?? '');
   const [query, setQuery] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // There's one entry a day, so "add" on Journal means writing in the one
+  // that's showing. Locked, it asks for Face ID first.
+  const editor = useRef<TextInput>(null);
+  const lock = useLock();
+  useAddAction('Write in journal', () => {
+    if (lock.privateLocked) void lock.unlock();
+    else editor.current?.focus();
+  });
 
   // Opening another day loads that day's text; it must not carry over.
   useEffect(() => {
@@ -148,6 +157,7 @@ export default function JournalScreen() {
 
         <Card style={{ padding: Space.gutter }}>
           <TextInput
+            ref={editor}
             value={body}
             onChangeText={onChange}
             onBlur={() => writeJournal(date, { body })}

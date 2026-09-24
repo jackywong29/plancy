@@ -81,13 +81,11 @@ export const Space = {
   radius: 14,
   row: 48,
   /**
-   * The floating tab bar, measured from the bottom of the screen: `tabBarHeight`
-   * is the glass itself, `tabBar` is that plus the breathing room a screen's
-   * last row wants under it. Anything parked above the bar measures from
-   * `tabBarHeight`; scrolling content pads by `tabBar`.
+   * The floating tab bar's glass, measured from the bottom of the screen.
+   * The add button, the toast and every tab's scroll padding (FAB_CLEARANCE
+   * in components/ui.tsx) measure from here.
    */
   tabBarHeight: 72,
-  tabBar: 108,
 } as const;
 
 const ThemeContext = createContext<Theme>(buildTheme('light', '#6D5EF0'));

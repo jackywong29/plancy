@@ -1,17 +1,22 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LayoutAnimationConfig, LinearTransition } from 'react-native-reanimated';
 
 import { SwipeRow } from '@/components/swipe-row';
 import { useToast } from '@/components/toast';
-import { BigTitle, Card, Chip, Empty, Icon, RoundButton, Screen, Tick } from '@/components/ui';
+import { BigTitle, Card, Chip, Empty, Icon, Screen, Tick } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { Idea } from '@/data/types';
+import { useAddAction } from '@/lib/add-action';
 import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 export default function IdeasScreen() {
   const { ideas, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea } = useStore();
+  // Ideas are for catching a thought fast, so the add button goes straight to
+  // the capture field with the keyboard up. Return saves it.
+  const capture = useRef<TextInput>(null);
+  useAddAction('Add idea', () => capture.current?.focus());
   const theme = useTheme();
   const toast = useToast();
   const [draft, setDraft] = useState('');
@@ -61,11 +66,11 @@ export default function IdeasScreen() {
           placeholder="Throw in an idea. Add #tag to sort it"
           placeholderTextColor={theme.ink3}
           keyboardAppearance={theme.scheme}
+          ref={capture}
           returnKeyType="done"
           accessibilityLabel="New idea"
           style={{ flex: 1, color: theme.ink, fontSize: Type.body, paddingVertical: 12 }}
         />
-        <RoundButton icon="plus" label="Add idea" onPress={commit} accent />
       </Card>
 
       <ScrollView

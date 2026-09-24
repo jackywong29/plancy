@@ -2,13 +2,14 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BigTitle, Card, Empty, Fab, FAB_CLEARANCE, Icon, Row, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
+import { BigTitle, Card, Empty, Icon, Row, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
 import { CashFlow } from '@/components/cashflow';
 import { MoneyRow } from '@/components/money-row';
 import { useToast } from '@/components/toast';
 import { haptic } from '@/lib/haptics';
 import { moneyForMonth, monthTotals, useStore } from '@/data/store';
-import { PrivateLock } from '@/lib/lock';
+import { useAddAction } from '@/lib/add-action';
+import { PrivateLock, useLock } from '@/lib/lock';
 import type { MoneyKind } from '@/data/types';
 import { addMonths, formatMoney, formatMonthLong, isoMonth, todayIso } from '@/lib/format';
 import { Space, Type, useTheme } from '@/theme/theme';
@@ -40,7 +41,13 @@ export default function FinanceScreen() {
   const currency = settings.currency;
   const share = (value: number): `${number}%` => `${totals.income > 0 ? Math.max(0, (value / totals.income) * 100) : 0}%`;
 
-  const addEntry = () => router.push({ pathname: '/money', params: { kind: 'spending', month } });
+  const lock = useLock();
+  // While Finance is locked, the add button asks for Face ID rather than
+  // opening a sheet over the lock.
+  useAddAction('Add money entry', () => {
+    if (lock.privateLocked) void lock.unlock();
+    else router.push({ pathname: '/money', params: { kind: 'spending', month } });
+  });
 
   /** Deleting offers Undo instead of asking first, as everywhere else. */
   function remove(id: string) {
@@ -53,7 +60,7 @@ export default function FinanceScreen() {
 
   return (
     <PrivateLock title="finance">
-      <Screen bottomInset={FAB_CLEARANCE}>
+      <Screen>
           <BigTitle>finance</BigTitle>
 
           <Card style={styles.monthPill}>
@@ -223,7 +230,6 @@ export default function FinanceScreen() {
             </>
           )}
       </Screen>
-      <Fab icon="plus" label="Add entry" onPress={addEntry} />
     </PrivateLock>
   );
 }

@@ -65,6 +65,7 @@ export function upcomingRepeats(tasks: Task[], today: string, through: string): 
         title: latest.title,
         notes: latest.notes,
         position: latest.position,
+        remind: latest.remind,
         repeat: latest.repeat,
         done: false,
         createdAt: now,

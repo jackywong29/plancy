@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title TEXT NOT NULL,
   notes TEXT NOT NULL DEFAULT '',
   position INTEGER NOT NULL DEFAULT 0,
+  remind INTEGER NOT NULL DEFAULT 1,
   repeat TEXT NOT NULL DEFAULT '',
   seriesId TEXT NOT NULL DEFAULT '',
   done INTEGER NOT NULL DEFAULT 0,
@@ -85,6 +86,9 @@ export function migrate(): void {
   const taskCols = db.getAllSync<{ name: string }>('PRAGMA table_info(tasks)').map((c) => c.name);
   if (!taskCols.includes('notes')) db.execSync("ALTER TABLE tasks ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
   if (!taskCols.includes('position')) db.execSync('ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+  // Tasks from before the per-task switch were all reminded (it followed the
+  // global setting), so they keep that.
+  if (!taskCols.includes('remind')) db.execSync('ALTER TABLE tasks ADD COLUMN remind INTEGER NOT NULL DEFAULT 1');
   const ideaCols = db.getAllSync<{ name: string }>('PRAGMA table_info(ideas)').map((c) => c.name);
   if (!ideaCols.includes('done')) db.execSync('ALTER TABLE ideas ADD COLUMN done INTEGER NOT NULL DEFAULT 0');
   // Rows from before series existed: repeating tasks that look alike become one
@@ -116,6 +120,7 @@ const asTask = (r: Row): Task => ({
   title: String(r.title),
   notes: String(r.notes ?? ''),
   position: Number(r.position ?? 0),
+  remind: Number(r.remind ?? 1) === 1,
   repeat: String(r.repeat) as Task['repeat'],
   seriesId: String(r.seriesId ?? '') || String(r.id),
   done: Number(r.done) === 1,
@@ -169,13 +174,13 @@ export function loadAll() {
 
 export function saveTask(t: Task): void {
   db.runSync(
-    `INSERT INTO tasks (id, date, time, title, notes, position, repeat, seriesId, done, createdAt, syncedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO tasks (id, date, time, title, notes, position, remind, repeat, seriesId, done, createdAt, syncedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        date = excluded.date, time = excluded.time, title = excluded.title, notes = excluded.notes,
-       position = excluded.position, repeat = excluded.repeat, seriesId = excluded.seriesId,
-       done = excluded.done, syncedAt = excluded.syncedAt`,
-    [t.id, t.date, t.time, t.title, t.notes, t.position, t.repeat, t.seriesId, t.done ? 1 : 0, t.createdAt, t.syncedAt],
+       position = excluded.position, remind = excluded.remind, repeat = excluded.repeat,
+       seriesId = excluded.seriesId, done = excluded.done, syncedAt = excluded.syncedAt`,
+    [t.id, t.date, t.time, t.title, t.notes, t.position, t.remind ? 1 : 0, t.repeat, t.seriesId, t.done ? 1 : 0, t.createdAt, t.syncedAt],
   );
 }
 

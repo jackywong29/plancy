@@ -21,6 +21,11 @@ export type Task = {
   time: string;
   /** Where an anytime task sits among that day's anytime tasks; lower first. */
   position: number;
+  /**
+   * Whether this task gets a reminder. Settings → Task reminders is the
+   * master switch above it: off there, no task is reminded whatever this says.
+   */
+  remind: boolean;
   title: string;
   /** Free text under the title: details, a link, what to bring. Empty when there are none. */
   notes: string;

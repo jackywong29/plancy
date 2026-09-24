@@ -102,7 +102,8 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
 
   const due = tasks
     // Anytime tasks have no time to remind at.
-    .filter((t) => !t.done && t.time !== '' && t.date >= today && t.date <= last)
+    // Anytime tasks have no time to remind at; a task can also opt out.
+    .filter((t) => !t.done && t.remind && t.time !== '' && t.date >= today && t.date <= last)
     .map((t) => ({ task: t, at: whenEpoch(t) - lead }))
     .filter((x) => x.at > now)
     .sort((a, b) => a.at - b.at)

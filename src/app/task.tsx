@@ -51,7 +51,8 @@ export default function TaskSheet() {
     return d;
   });
   const [repeat, setRepeat] = useState<Repeat>(existing?.repeat ?? '');
-  const [remind, setRemind] = useState(settings.remind);
+  // Per task. A new one starts on when Settings → Task reminders is on.
+  const [remind, setRemind] = useState(existing ? existing.remind : settings.remind);
   const [pickingDay, setPickingDay] = useState(false);
 
   const canSave = title.trim().length > 0;
@@ -60,10 +61,10 @@ export default function TaskSheet() {
     if (!canSave) return;
     const time = timed ? `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}` : '';
     if (existing) {
-      editTask(existing.id, { title: title.trim(), notes: notes.trim(), time, repeat });
+      editTask(existing.id, { title: title.trim(), notes: notes.trim(), time, remind, repeat });
       if (date !== existing.date) moveTask(existing.id, date);
     } else {
-      addTask({ date, time, title: title.trim(), notes: notes.trim(), repeat });
+      addTask({ date, time, title: title.trim(), notes: notes.trim(), remind, repeat });
     }
     haptic('saved');
     router.back();
@@ -220,7 +221,9 @@ export default function TaskSheet() {
             </Row>
           </Card>
           <Text style={{ color: theme.ink2, fontSize: Type.footnote, marginTop: 7, marginHorizontal: Space.gutter }}>
-            Reminders are scheduled on this iPhone, so they arrive with no internet.
+            {settings.remind
+            ? 'Reminders are scheduled on this iPhone, so they arrive with no internet.'
+            : 'Task reminders are off in Settings, so none will arrive until you turn them on there.'}
           </Text>
           </>
         ) : null}

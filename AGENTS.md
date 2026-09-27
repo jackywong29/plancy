@@ -18,6 +18,7 @@ using an Expo API.
 ```sh
 . scripts/ios-env.sh && npx expo run:ios      # simulator; first run ~10 min
 npx tsc --noEmit                              # typecheck
+npm test                                      # tests (docs/TEST_SPEC.md); keep green
 sh scripts/install-on-iphone.sh               # Jacky's iPhone over the cable (free Apple ID)
 ```
 
@@ -38,7 +39,8 @@ src/app/settings.tsx       pushed from the gear on Today
 src/components/ui.tsx      Screen, BigTitle, Card, Row, Tick, Chip, Empty…
 src/data/types.ts          records; every one carries syncedAt for iCloud sync
 src/data/db.ts             SQLite schema + reads/writes + tombstones
-src/data/store.tsx         in-memory store, writes through to SQLite; selectors
+src/data/store.tsx         in-memory store, writes through to SQLite (opens it on import)
+src/data/select.ts         selectors: streak, countsByDate, tasksForDay, monthTotals
 src/data/seed.ts           sample rows, __DEV__ only
 src/lib/format.ts          dates in local time, times, money in minor units
 src/theme/palette.ts       12 swatches + contrast maths (inkOn, accentTextFor)
@@ -94,14 +96,20 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
 - **Rows of choices use `Segmented`** (`components/ui.tsx`), which stacks at
   accessibility text sizes. Don't hand-roll another one. Anything else sitting
   side by side should check `useAccessibilitySize()` and stack too.
+- **Logic that can be pure, is, and gets a test.** Tests sit next to the
+  file (`format.test.ts`); helpers are in `test/`. Anything a test needs must
+  import without SQLite or a native module — `store.tsx` opens the database on
+  import, so selectors live in `data/select.ts`, and planning is split from
+  scheduling (`planReminders` / `syncReminders`). A known bug is written as
+  `it.failing` with the behaviour we want; flip it to `it` when it's fixed.
 - Motion uses Reanimated layout animations; Reduce Motion is honoured by its
   defaults, and bespoke motion checks `useReducedMotion()`.
 
 ## Not built yet
 
-iCloud sync (native CloudKit module), interactive widgets, streak
-celebration, onboarding, import from the web planner's export file, editing
-finance entries, localisation of strings (all UI text is English inline for now).
+iCloud sync (native CloudKit module), import from the web planner's export
+file, localisation of strings (all UI text is English inline for now), and
+"this task / this and future" for repeating tasks (HANDOFF, Open questions).
 
 ## Built so far
 

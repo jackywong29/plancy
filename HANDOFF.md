@@ -35,14 +35,23 @@ Device Management → trust the Apple ID again.
   the whole app, Lock Screen widgets that hide task names while the app is
   locked, and anytime tasks you drag into order. Details in "Round of
   changes, 24 Sep" below.
-- **After build 6**, committed but *not yet on the phone*: the task sheet's
-  Remind me switch is now a real per-task setting. Build 7 will carry it.
+- **After build 6**, *not yet on the phone*: the task sheet's Remind me
+  switch is now a real per-task setting, and a celebration fix (below).
+  Build 7 will carry them.
+- **Tests exist (24 Sep): 174 of them, `npm test`, ~1.5 s.** Everything
+  `docs/TEST_SPEC.md` §3 asked for, plus the drag maths and the widget
+  rendered offline in every family. Keep `npm test` and `npx tsc --noEmit`
+  green. See "Tests (24 Sep)" below.
+- **The tests found a real gap in repeating tasks.** Decided 27 Sep: plancy
+  will ask "This task only / This and future tasks" on editing or deleting a
+  repeating task, like Apple's Calendar. Item 1 of "Next, in this order".
 - **Apple enrolment is on hold by Jacky's choice.** The D-U-N-S (473263782)
-  is issued; resume "Enrolment, in order" below only when he says so.
+  is issued; resume "Enrolment, in order" below only when Jacky says so.
 - **Waiting on Jacky's hands**, because the CLI can't touch a screen: drag
   anytime tasks, try the add button on each tab, add a Lock Screen widget,
   and do one VoiceOver pass.
-- **Next piece of work**: tests (see "Next, in this order").
+- **Next piece of work**: repeat series, together with the iCloud id
+  groundwork (see "Next, in this order").
 
 ## Decisions already made (don't re-open these)
 
@@ -85,6 +94,7 @@ Device Management → trust the Apple ID again.
 cd ~/plancy
 . scripts/ios-env.sh && npx expo run:ios      # simulator; first build ~10 min, later ones seconds
 npx tsc --noEmit                              # typecheck; keep it clean
+npm test                                      # 174 tests, ~1.5 s; keep them green
 ```
 
 Two local quirks, both already handled:
@@ -120,11 +130,11 @@ xcrun simctl io booted screenshot shot.png
 
 **Widget debugging.** A release build renders a widget layout that throws as
 an *empty white tile* (the red error box is debug-only), and iOS passes no
-props for the gallery preview and placeholder. Test a layout offline: take the
-layout string from the simulator's app group plist
-(`__expo_widgets_TodayWidget_layout`), eval `ExpoWidgets.bundle` from the
-built app in Node, and call `__expoWidgetRender(props, { widgetFamily })` with
-real, empty and partial props.
+props for the gallery preview and placeholder. `npx jest TodayWidget` now
+renders every family offline against real, empty and broken props (see
+"Tests (24 Sep)"). The layout a built app actually stored is in the
+simulator's app group plist (`__expo_widgets_TodayWidget_layout`) if you
+ever need to render that exact string instead.
 
 **Face ID in the simulator:** `xcrun simctl spawn booted notifyutil -s
 com.apple.BiometricKit.enrollmentChanged '1'` then `-p` the same name to
@@ -197,13 +207,16 @@ plugins/with-widget-privacy-manifest.js  widget extension's PrivacyInfo.xcprivac
 plugins/with-store-hygiene.js  drops unused Info.plist keys; PLANCY_STORE=1 for the upload build
 src/data/types.ts          records; every one carries syncedAt, ready for iCloud merge
 src/data/db.ts             SQLite schema, reads/writes, tombstones, migrations
-src/data/store.tsx         in-memory store writing through to SQLite; selectors
+src/data/store.tsx         in-memory store writing through to SQLite (opens the db on import)
+src/data/select.ts         selectors: streak, countsByDate, tasksForDay, monthTotals (pure, tested)
 src/data/repeats.ts        repeat series for tasks; monthly bill roll-forward
 src/data/seed.ts           sample rows, __DEV__ only
 src/lib/format.ts          local-time dates, 12/24h, money in minor units, locale defaults
 src/lib/reminders.ts       schedules iOS notifications for the coming week
 src/theme/palette.ts       12 swatches + contrast maths (inkOn, accentTextFor)
 src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
+*.test.ts                  tests, next to what they test; widgets/TodayWidget.test.ts renders the widget offline
+test/                      test helpers: time zone pin, phone-locale stand-in, record makers
 ```
 
 ## Rules that must hold
@@ -314,6 +327,57 @@ drop), the add button on each tab, and adding a Lock Screen widget.
 nothing. It's now a real per-task setting (`task.remind`, default on), with
 Settings → Task reminders still the master switch. Not on the phone until
 build 7.
+
+## Tests (24 Sep)
+
+`npm test` runs 174 tests in about 1.5 seconds; `docs/TEST_SPEC.md` §1–3
+says what each file covers and how it's set up. Things worth knowing:
+
+- **Every test runs in Sydney time** (`test/timezone.js`): ahead of UTC like
+  KL, *and* with daylight saving, which KL lacks. The date tests would catch
+  the web planner's `toISOString()` bug and a day that is 23 hours long.
+- **Pure logic must be importable without SQLite.** `store.tsx` opens the
+  database on import, so the selectors moved to `data/select.ts` (screens
+  import them from there now), and reminders gained `planReminders()`, the
+  "which and when" half of `syncReminders`. `widget.ts` exports `propsFor`
+  so the widget test renders real props.
+- **The widget test renders the real layout in a separate JavaScript
+  context**, the way the widget extension does, across every family, both
+  schemes and ten kinds of props including none and garbage — a throw on the
+  phone is a blank white tile with no error. It also proves no task name
+  shows while the whole-app lock is on. It needs `ExpoWidgets.bundle`, which
+  any iOS build puts in `node_modules`.
+- **Onboarding's notification pictures are checked against the real
+  notifications.** Change the reminder or nudge wording and the test tells
+  you to change the onboarding screen too.
+- **`it.failing`** marks a known bug written as the behaviour we want. It
+  "passes" while the bug is there and turns red once it's fixed — then make
+  it a plain `it`. Two of them today (BUG-1, BUG-2 below). The release gate
+  says none may be left at submission.
+
+**Found while writing them:**
+
+1. **Fixed — a celebration could play twice.** After a streak milestone,
+   unticking and re-ticking the task showed a second card ("September,
+   spotless"), then the day burst. `celebrate.ts` now spends everything one
+   tick earned together.
+2. **BUG-1 — a deleted repeat comes back.** Delete the furthest copy of a
+   repeating task (a week out) and the next top-up (next launch, or the next
+   task added) recreates it with a new id. The tombstone can't stop it
+   because the id differs. Deterministic ids (`seriesId@date`) plus a
+   tombstone check fix it — the same ids the iCloud groundwork needs anyway.
+3. **BUG-2 — a monthly series on the 31st drifts after a delete.** The
+   anchor day is read off the oldest copy still there; delete January's 31st
+   and the series walks to the 28th from March on.
+4. **A repeating task can't reliably be stopped or changed.** Edits and
+   "Repeat: never" apply to the one copy you opened; the newest copy is the
+   series' template and keeps it going. Turning Repeat off on the *newest*
+   copy even creates a duplicate on its date. See "Open questions".
+5. **Pasting an amount.** The amount field keeps digits only, so pasting
+   "1,000" stores RM 10.00 and "RM 50" stores RM 0.50. `parseMoney` reads
+   both correctly but has had no caller since the field went bank-style.
+   Small fix: if the text changed by more than one character (a paste), run
+   it through `parseMoney`. Not done — it's UI and needs a hand test.
 
 ## On the phone: build 4 (20 Sep)
 
@@ -543,22 +607,24 @@ says "Lock your journal and finances behind Face ID", which is accurate.
 The week-by-week plan in `docs/IMPLEMENTATION_GUIDE.md` has a status block at
 the top; this is the short version as of 24 Sep. Items 1 to 5 of the old list
 (correctness, permission priming, onboarding, finance editing, accessibility)
-are done.
+are done, and so are the tests (24 Sep).
 
-1. **Tests.** There are still none in the repo. Two silent data bugs and one
-   drag-maths bug were each caught by a throwaway harness in this session's
-   scratchpad, not by anything that stays. Set up `jest-expo` and write what
-   `docs/TEST_SPEC.md` §3 lists, plus `data/order.ts` (dayOrder, move,
-   nextPosition, slotFor, offsetTo). Also make the offline widget render
-   (every family × real / private / empty / malformed props, "no throw, no
-   task name while private") a script in `scripts/`, since a throwing layout
-   is a blank white tile on the phone with no error.
+1. **Repeat series — decided 27 Sep: "This task only / This and future
+   tasks"** on edit and on delete, like Apple's Calendar. The
+   tests found that a repeating task can't reliably be stopped or edited,
+   plus BUG-1 and BUG-2 ("Tests (24 Sep)"). The likely fix gives each series
+   its own record (rule, anchor day, end, and the title/time/notes new copies
+   take) and gives each copy a deterministic id, `seriesId@date`, so a
+   tombstone keeps a deleted copy deleted. That id is the same one item 3
+   needs, so do the two together — it's one migration instead of two. Flip
+   the two `it.failing` tests in `repeats.test.ts` to `it` when done.
 2. **App Store material** — needs no Apple account: 6.9-inch screenshots,
    listing text and keywords (drafted in `docs/RELEASE_SPEC.md`), and the
    privacy + support pages for clancyhq.com (Claude writes, Jacky publishes).
    Screenshots after the 24 Sep round, since it changed Today and every tab.
 3. **iCloud sync groundwork** — deterministic ids for generated records
-   (`seriesId@date`, `seriesId@month`, `j-date`) plus an outbox. Doable now;
+   (`seriesId@date`, `seriesId@month`, `j-date`) plus an outbox; start it
+   with item 1. Doable now;
    the `CKSyncEngine` module itself needs the developer account. If sync isn't
    solid in time, v1 ships on-device only and sync becomes v1.1. **The date
    does not move.**
@@ -568,9 +634,11 @@ are done.
    hide names in that case (4b.1, fixed); notifications should follow the
    same rule — generic copy when locked. Needs Jacky's yes.
 6. Tune haptics and celebrations on hardware (the simulator plays none).
-7. Move UI text out of the code for translation (structure now, translate
+7. **Pasting into the amount field** ("Tests (24 Sep)", item 5): route a
+   paste through `parseMoney`. Small; needs a hand test on the phone.
+8. Move UI text out of the code for translation (structure now, translate
    later).
-8. **Version 1.1**: Siri via App Intents ("Add a task in plancy", "What's on
+9. **Version 1.1**: Siri via App Intents ("Add a task in plancy", "What's on
    my plancy today?" — the widget's app-group data already has the answer),
    and the iOS 26 glass add circle if react-native-screens adopts UITab.
 
@@ -633,8 +701,10 @@ Answered since 18 Sep, and recorded where they apply: EU at launch (yes, now
 that money parsing is locale-aware), flat US$4.99 (no launch discount), the
 morning nudge offered on its own onboarding screen and off by default, undo
 instead of confirm on delete, all twelve colours stay, Siri waits for 1.1,
-anytime tasks rather than priority, Lock Screen names follow the Face ID lock.
+anytime tasks rather than priority, Lock Screen names follow the Face ID lock,
+and repeating tasks ask "This task only / This and future tasks" (27 Sep).
 
 Still open:
 
 - Notifications while the whole-app lock is on (item 5 of "Next").
+

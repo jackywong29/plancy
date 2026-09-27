@@ -95,21 +95,7 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
       });
     }
   }
-  if (!settings.remind) return;
-  const last = addDays(today, HORIZON_DAYS);
-  const now = Date.now();
-  const lead = settings.leadMinutes * 60_000;
-
-  const due = tasks
-    // Anytime tasks have no time to remind at.
-    // Anytime tasks have no time to remind at; a task can also opt out.
-    .filter((t) => !t.done && t.remind && t.time !== '' && t.date >= today && t.date <= last)
-    .map((t) => ({ task: t, at: whenEpoch(t) - lead }))
-    .filter((x) => x.at > now)
-    .sort((a, b) => a.at - b.at)
-    .slice(0, MAX_PENDING);
-
-  for (const { task, at } of due) {
+  for (const { task, at } of planReminders(tasks, settings, today)) {
     const { time, suffix } = splitTime(task.time, settings.hour12);
     await Notifications.scheduleNotificationAsync({
       identifier: task.id,
@@ -121,6 +107,27 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(at) },
     });
   }
+}
+
+/**
+ * The reminders to schedule: the coming week's open, timed tasks, soonest
+ * first, each `leadMinutes` before its time, never in the past, and never
+ * more than the budget left after the nudge. Empty when reminders are off.
+ */
+export function planReminders(tasks: Task[], settings: Settings, today: string): { task: Task; at: number }[] {
+  if (!settings.remind) return [];
+  const last = addDays(today, HORIZON_DAYS);
+  const now = Date.now();
+  const lead = settings.leadMinutes * 60_000;
+  return (
+    tasks
+      // Anytime tasks have no time to remind at; a task can also opt out.
+      .filter((t) => !t.done && t.remind && t.time !== '' && t.date >= today && t.date <= last)
+      .map((t) => ({ task: t, at: whenEpoch(t) - lead }))
+      .filter((x) => x.at > now)
+      .sort((a, b) => a.at - b.at)
+      .slice(0, MAX_PENDING)
+  );
 }
 
 function whenEpoch(task: Task): number {

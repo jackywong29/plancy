@@ -21,7 +21,7 @@ days. **What's left is mostly not code.**
 | ➕ Not in the plan | A security audit (`RELEASE_SPEC` §4b) that found and fixed a missing widget privacy manifest — which would have been an automated rejection at upload. |
 | ⬜ Week 3.2 — store material | Not started. Needs no Apple account. |
 | ⬜ Week 4.1–4.2 — sync groundwork | Not started. Needs no Apple account. |
-| ⬜ Tests | Still none. `TEST_SPEC` §3 lists exactly which to write. |
+| ✅ Tests (24 Sep) | 174 tests, `npm test`, ~1.5 s — everything `TEST_SPEC` §3 asked for, plus the drag maths and the widget rendered offline. Found five more problems; one fixed, the rest in `TEST_SPEC` §3.9. |
 | 🔓 Week 4.3, 6 — sync engine, TestFlight | **Unblocked 23 Sep**: D-U-N-S 473263782 issued. Reachable once Apple enrolment clears. |
 
 ### What to do while Apple verifies the enrolment

@@ -9,7 +9,7 @@
  * Each moment is celebrated once per session, so unticking and ticking again
  * doesn't replay it. Pure, so the rules are easy to check.
  */
-import { countsByDate, streak } from '@/data/store';
+import { countsByDate, streak } from '@/data/select';
 import type { Task } from '@/data/types';
 import { formatMonthLong, isoMonth } from '@/lib/format';
 
@@ -49,29 +49,29 @@ export function celebrationFor(tasks: Task[], date: string, today: string, seen:
   const day = counts.get(date);
   if (!day || day.total === 0 || day.done < day.total) return null;
 
+  // Everything this tick earned, rarest first.
+  const earned: Celebration[] = [];
   if (date === today) {
     const days = streak(tasks, today);
-    const key = `streak:${days}:${today}`;
-    if (MILESTONES.includes(days) && !seen.has(key)) {
-      seen.add(key);
-      return { kind: 'milestone', key, days, title: `${days}-day streak`, body: milestoneCopy(days) };
+    if (MILESTONES.includes(days)) {
+      earned.push({ kind: 'milestone', key: `streak:${days}:${today}`, days, title: `${days}-day streak`, body: milestoneCopy(days) });
     }
   }
 
   const month = isoMonth(date);
   if (month === isoMonth(today) && date <= today) {
     const planned = [...counts].filter(([d, c]) => isoMonth(d) === month && c.total > 0);
-    const spotless = planned.length >= 7 && planned.every(([, c]) => c.done === c.total);
-    const key = `month:${month}`;
-    if (spotless && !seen.has(key)) {
-      seen.add(key);
+    if (planned.length >= 7 && planned.every(([, c]) => c.done === c.total)) {
       const name = formatMonthLong(month).split(' ')[0];
-      return { kind: 'month', key, title: `${name}, spotless`, body: `All ${planned.length} planned days this month, done.` };
+      earned.push({ kind: 'month', key: `month:${month}`, title: `${name}, spotless`, body: `All ${planned.length} planned days this month, done.` });
     }
   }
 
-  const key = `day:${date}`;
-  if (seen.has(key)) return null;
-  seen.add(key);
-  return { kind: 'day', key };
+  earned.push({ kind: 'day', key: `day:${date}` });
+
+  // Show the rarest one not yet seen, and spend the rest with it: otherwise
+  // unticking and ticking again brings the smaller ones out one at a time.
+  const fresh = earned.find((c) => !seen.has(c.key)) ?? null;
+  if (fresh) for (const c of earned) seen.add(c.key);
+  return fresh;
 }

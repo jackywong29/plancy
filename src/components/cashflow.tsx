@@ -22,7 +22,7 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
-import { monthTotals } from '@/data/store';
+import { monthTotals } from '@/data/select';
 import type { MoneyEntry } from '@/data/types';
 import { haptic } from '@/lib/haptics';
 import { addMonths, formatMoney, formatMonthLong, fromIso, minorUnits } from '@/lib/format';

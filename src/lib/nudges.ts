@@ -15,7 +15,7 @@
  */
 import * as Notifications from 'expo-notifications';
 
-import { countsByDate, streak, tasksForDay } from '@/data/store';
+import { countsByDate, streak, tasksForDay } from '@/data/select';
 import type { Settings, Task } from '@/data/types';
 import { addDays, addMonths, formatMonthLong, fromIso, isoMonth, splitTime } from '@/lib/format';
 

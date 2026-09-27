@@ -1,135 +1,158 @@
 # plancy. — Test Specification
 
-**Version 1.0 · 18 Sep 2026**
+**Version 1.1 · 24 Sep 2026** (1.0 was 18 Sep, before any test existed)
 
 ---
 
 ## 1. Where things stand
 
-**There are no automated tests.** No test runner, no test files, no CI. The
-only gate today is `npx tsc --noEmit`, which is clean and must stay clean.
-
-That is survivable for a four-tab local app with one developer — but not for
-the parts where a bug is *silent*. A wrong colour is obvious the moment you
-look. A monthly repeat that drifts from the 31st to the 28th, or an amount that
-parses "1,000" as one ringgit, is invisible until a user's data is already
-wrong. Both of those bugs are in the app right now, and both would have been
-caught by a twenty-line test.
-
-**So: do not chase coverage. Test the pure logic, and test the rest by hand
-against a written script.**
-
----
-
-## 2. What to set up
+**174 automated tests, all green, in about 1.5 seconds.** Run them with:
 
 ```sh
-npx expo install --dev jest jest-expo @types/jest
+npm test                 # everything
+npx jest repeats         # one file, by part of its name
+npx tsc --noEmit         # the typecheck covers the tests too
 ```
 
-`jest-expo` is the preset that understands Expo's module resolution. Add to
-`package.json`:
+They test the pure logic, where every silent bug so far has lived: a monthly
+repeat that drifted from the 31st to the 28th, an amount that parsed "1,000"
+as one ringgit. Both are pinned now (KNOWN-1, KNOWN-2), and writing the
+tests turned up five more (§3.9).
 
-```json
-"scripts": { "test": "jest" },
-"jest": { "preset": "jest-expo" }
-```
-
-Tests live next to what they test: `src/lib/format.test.ts`,
-`src/data/repeats.test.ts`.
-
-**Scope: `src/lib/format.ts`, `src/data/repeats.ts`, `src/lib/celebrate.ts`,
-`src/theme/palette.ts`, and the nudge/reminder planners.** These are pure
-functions with no native dependencies. They are also where every silent bug
-lives. Do not write component tests — the UI churns, and hand-testing it is
-faster than maintaining snapshots.
+**The rule hasn't changed: do not chase coverage.** Test the pure logic;
+test the UI by hand against §4. There are no component or snapshot tests on
+purpose — the UI churns, and hand-testing it is faster than maintaining them.
 
 ---
 
-## 3. Priority 1 — the tests that catch the bugs you have
+## 2. How it is set up
+
+- **Runner:** `jest` with the `jest-expo` preset, configured in
+  `package.json` under `"jest"`. `@/` imports resolve through
+  `moduleNameMapper`, mirroring `tsconfig.json`.
+- **Where tests live:** next to what they test (`src/lib/format.test.ts`),
+  except the shared helpers in `test/`.
+- **Time zone: every test runs in `Australia/Sydney`** (`test/timezone.js`).
+  Sydney, not Kuala Lumpur, because it has both hazards: it is ahead of UTC
+  like KL, so a 7:30 am date is still yesterday in UTC (the web planner's
+  `toISOString()` bug), and it has daylight saving, which KL doesn't. The
+  zone is set in Jest's global setup because a test file can't change its
+  own; `format.test.ts` checks it took.
+- **Phone language and region:** `expo-localization` is replaced for every
+  test by `test/locale.ts`. Tests start as an English phone in Malaysia;
+  `setPhone({ languageTag: 'de-DE', currencyCode: 'EUR' })` changes it for
+  one test.
+- **Records:** `test/make.ts` — `task()`, `bill()`, `settings()` fill in dull
+  defaults so a test only spells out what it's about; `days()` and
+  `finishedDays()` build date ranges and streaks.
+- **Pure code must be importable without SQLite.** `data/store.tsx` opens the
+  database the moment it is imported, so the selectors (`streak`,
+  `countsByDate`, `tasksForDay`, `monthTotals`…) live in `data/select.ts`,
+  and the reminder plan is `planReminders()`, separate from the code that
+  talks to iOS. Keep new logic that way.
+- **`it.failing`** marks a test written the way plancy *should* behave that
+  still fails today (§3.9). Jest counts it as passing while it fails; when a
+  fix lands, it turns red — that is the cue to change it to a plain `it`.
+
+---
+
+## 3. What is tested
 
 ### 3.1 Repeats — `src/data/repeats.test.ts`
 
-```
-monthly anchor
-  ✓ 31 Jan steps to 28 Feb, then back to 31 Mar, 30 Apr, 31 May   ← KNOWN-1
-  ✓ 30 Jan steps to 28 Feb, then 30 Mar
-  ✓ 29 Feb in a leap year steps to 28 Feb the next year
-  ✓ 15th stays the 15th for twelve months
-daily / weekly
-  ✓ daily fills exactly `through - today + 1` instances
-  ✓ weekly lands on the same weekday every time
-  ✓ a series dormant for a month emits nothing before today
-series
-  ✓ the newest instance is the template
-  ✓ two tasks with the same title but different seriesId stay separate
-  ✓ a non-repeating task emits nothing
-bills
-  ✓ a repeatMonthly bill missing from a month is emitted, unpaid
-  ✓ a bill already present is not duplicated
-  ✓ dueDay and amountMinor carry forward
-  ✓ a bill in a future month is not rolled backwards
-```
+Monthly repeats keep their anchor day (31 Jan → 28 Feb → 31 Mar → 30 Apr,
+**KNOWN-1**), both in one call and made a week at a time the way the store
+really makes them; 30 Jan, 29 Feb in a leap year, the 15th for a year. Daily
+fills every day once; weekly keeps its weekday across daylight saving; a
+series left alone restarts today, not in the past; topping up twice adds
+nothing. The newest copy is the template, ticks are never copied, the
+per-task reminder switch and anytime position carry. Bills: copied unpaid
+into a month that lacks them, never duplicated, amount/due day/label from
+the latest month, never rolled backwards, one-off bills and income skipped.
 
 ### 3.2 Money — `src/lib/format.test.ts`
 
-```
-parseMoney
-  ✓ "12.50" → 1250
-  ✓ "1,000" → 100000, not 100                     ← KNOWN-2
-  ✓ "1,234.56" → 123456, not rejected             ← KNOWN-2
-  ✓ "1.000,50" in de-DE → 100050                  ← KNOWN-2
-  ✓ "RM 12.50" → 1250
-  ✓ "" , "-", "." , "abc" → null
-  ✓ "0" → 0 (and the caller rejects it, not the parser)
-  ✓ negatives are absolute
-  ✓ never returns a non-integer
-formatMoney
-  ✓ round-trips every parseMoney result
-  ✓ JPY (0 minor units) formats without a decimal point
-minorUnits
-  ✓ MYR/USD → 100, JPY → 1
-```
+`parseMoney`: "1,000" is a thousand and "1,234.56" parses (**KNOWN-2**);
+German numbers on a German phone; currency marks ignored; nothing → null;
+never a fraction of a sen. `formatMoney`/`formatAmount` round-trip through
+`parseMoney` for 14 amounts on ten phone/currency pairs, including yen (no
+decimals), the Kuwaiti dinar (three), Swiss, French and Indian grouping.
 
 ### 3.3 Dates — `src/lib/format.test.ts`
 
-```
-  ✓ isoDate uses local time, not UTC        (pin TZ=Asia/Kuala_Lumpur, assert
-                                             a 23:30 local date is still today)
-  ✓ addDays crosses month and year boundaries
-  ✓ addDays crosses a DST boundary without slipping a day
-  ✓ weekOf returns 7 days starting Monday when weekStart = 1, Sunday when 7
-  ✓ monthGrid leading blanks are correct for both week starts
-  ✓ monthGrid has 28/29/30/31 real cells as appropriate
-  ✓ weekdayInitials returns 7 distinct initials in the right order
-  ✓ splitTime: "00:00" → 12:00 am, "12:00" → 12:00 pm, "13:05" → 1:05 pm
-```
+`isoDate` keeps 7:30 am on its own day (and the test shows `toISOString()`
+wouldn't); `todayIso` just after midnight; `addDays` across month and year
+ends and both daylight-saving changes, and walked a day at a time through two
+whole years; `weekOf`, `monthGrid` (blanks for both week starts, 28–31 real
+cells), `weekdayInitials`, `splitTime` on both clocks.
 
-The UTC one is worth its own note: `toISOString()` is banned in this codebase
-precisely because it broke this in the web planner. A test pins it.
+*(1.0 asked for "7 distinct initials" — in English there aren't: T and S
+repeat. The test checks the order instead.)*
 
-### 3.4 Contrast — `src/theme/palette.test.ts`
+### 3.4 Colour — `src/theme/palette.test.ts`
 
-```
-  ✓ accentTextFor reaches ≥ 4.5:1 for all 12 swatches on light and dark cards
-  ✓ ... and for the extremes: #FFFFFF, #000000, #FFFF00
-  ✓ inkOn picks dark ink for amber, white for slate
-  ✓ accentFor lifts a dark swatch in dark mode
-  ✓ mix(a, b, 0) === a and mix(a, b, 1) === b
-```
+Accent text reaches 4.5:1 on light and dark cards for all 12 swatches, for
+extremes (white, black, yellow, cyan…), and for **216 colours sampled across
+the whole range the custom picker can make** — measured through
+`buildTheme`, so it's what the reader actually sees. `inkOn`, `accentFor`,
+`mix`.
 
-This is the test that makes the custom colour picker safe: it proves any hex a
-user picks stays readable.
+### 3.5 Notifications — `src/lib/reminders.test.ts`
 
-### 3.5 Notification budget — `src/lib/reminders`, `src/lib/nudges`
+Against a stand-in for iOS's notification centre: at most 53 reminders and 7
+nudges, never more than 60 pending; reminders off cancels reminders and keeps
+nudges; both off leaves nothing; a pending nudge preview survives a resync;
+no reminder in the past, only open timed tasks that want one within the week;
+the lead time; nothing scheduled — and no prompt — without permission; the
+exact reminder wording. The morning nudge's copy for an empty day, three
+things and "and N more", anytime-only days, a milestone within reach, a
+streak in progress, Mondays and the 1st.
 
-```
-  ✓ a week of hourly tasks never plans more than 53 reminders
-  ✓ nudges never exceed 7
-  ✓ total pending ≤ 60 with reminders and nudges both on
-  ✓ reminders off cancels every pending reminder but keeps nudges
-  ✓ a reminder whose lead time is in the past is not scheduled
-```
+**Onboarding copy is checked against the real thing.** The onboarding
+screens draw the reminder and the nudge they ask permission for, with the
+words typed in. A test generates both from the real code and fails if the
+screens say something else.
+
+### 3.6 Celebrations and streaks — `src/lib/celebrate.test.ts`, `src/data/select.test.ts`
+
+Day / milestone / spotless month, rarest first; no replay on untick and
+re-tick; milestones only for today; the month needs seven planned days and
+none unfinished, and never a past month. Streaks survive an unfinished or
+empty today, stop at a gap or an unfinished day, run through daylight saving
+and new year. `monthTotals`.
+
+### 3.7 Order and drag — `src/data/order.test.ts`
+
+`dayOrder` (clock, then position, ties by creation), `move` (clamps),
+`nextPosition`, and the drag maths: `slotFor` crosses at a neighbour's middle
+with uneven row heights, and travelling exactly `offsetTo(from, to)` lands in
+slot `to` for every pair.
+
+### 3.8 The widget, rendered offline — `widgets/TodayWidget.test.ts`
+
+Does what §5's manual recipe did, every run. It takes the layout Babel makes
+from `TodayWidget.tsx`, loads `ExpoWidgets.bundle` in a separate JavaScript
+context, and renders the way the widget extension does. Every family (small,
+medium, inline, circular, rectangular) × light and dark × ten kinds of props
+— none, empty, real, private, nothing planned, broken types, junk in the
+list, a 2,000-character title, a 30-task day — must render without throwing,
+because on the phone a throw is a blank white tile with no error. While the
+whole-app lock is on, no family and no style may show a task name, and there
+is nothing to tick; a control test proves the names are there when unlocked.
+Ticking on the home screen flips the task and records it in `touched` once.
+
+`ExpoWidgets.bundle` is built into `node_modules` by the first iOS build. On
+a fresh checkout without one: `node node_modules/expo-widgets/scripts/build-bundle.mjs`.
+
+### 3.9 Found by writing the tests (24 Sep)
+
+| | | |
+|---|---|---|
+| Celebrations | After a streak milestone, unticking and re-ticking the task played a *second* card ("September, spotless"), then the day burst. | **Fixed.** Everything one tick earns is spent together. |
+| BUG-1 | Deleting the furthest copy of a repeating task (a week out) brings it back the next time the series is topped up — on the next launch, or the next task added. | `it.failing` in `repeats.test.ts`. Open. |
+| BUG-2 | Deleting the first copy of a monthly series on the 31st moves the series to the 28th for good: the anchor is read off the oldest copy still there. | `it.failing` in `repeats.test.ts`. Open. |
+| Series | A repeating task can't reliably be stopped or changed. Edits and "Repeat: never" apply to one copy; the newest copy keeps the series going. | Needs a product decision (HANDOFF "Open questions"). |
+| Paste | The amount field keeps digits only, so pasting "1,000" stores RM 10.00, and "RM 50" stores RM 0.50. `parseMoney` handles both, but nothing calls it since the field went bank-style on 20 Sep. | Open. Manual test §4.5 covers it. |
 
 ---
 
@@ -169,7 +192,7 @@ approximates Face ID.
 
 ### 4.5 Finance
 - [ ] `1000`, `12.50`, `0.05` all store exactly ← KNOWN-2
-- [ ] **Paste `1,234.56`** ← KNOWN-2
+- [ ] **Paste `1,234.56`, then `1,000`, then `RM 50`** ← KNOWN-2, and §3.9 "Paste"
 - [ ] Left-this-month matches the arithmetic by hand
 - [ ] Bills sort unpaid-first by due day
 - [ ] Currency change re-formats everything
@@ -236,12 +259,10 @@ xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit.enrollmentChanged
 xcrun simctl spawn booted notifyutil -p com.apple.BiometricKit_Sim.pearl.match   # or .nomatch
 ```
 
-**Widget, offline.** A release build renders a throwing layout as an empty white
-tile with no error, so test it outside the widget host: take the layout string
-from the app group plist (`__expo_widgets_TodayWidget_layout`), evaluate
-`ExpoWidgets.bundle` from the built app in Node, and call
-`__expoWidgetRender(props, { widgetFamily })` with **real, empty and partial
-props**. The empty case is the one that catches the gallery-preview crash.
+**Widget, offline.** Automated now: `npx jest TodayWidget` (§3.8). To check
+the exact layout a built app stored instead of the one Babel makes from
+source, it is in the simulator's app group plist under
+`__expo_widgets_TodayWidget_layout`; the same harness renders it.
 
 ---
 
@@ -250,7 +271,9 @@ props**. The empty case is the one that catches the gallery-preview crash.
 Do not submit unless:
 
 1. `npx tsc --noEmit` is clean.
-2. `npm test` is green, including every KNOWN-1 and KNOWN-2 case.
+2. `npm test` is green, including every KNOWN-1 and KNOWN-2 case, **and no
+   `it.failing` is left** — shipping a known bug must be a decision, not an
+   accident.
 3. §4 has been walked on hardware, on the actual submission build.
 4. §4.10 is complete — it has never been done.
 5. The build has **no test tools**: `extra.testTools` absent, no sample data.

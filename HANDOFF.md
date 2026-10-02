@@ -9,13 +9,19 @@ Jacky's Daily Planner web app (`~/daily-planner`) rebuilt as a native iPhone
 app called **plancy.**, to be sold on the App Store by his company Clancy.
 Nothing is public yet. It runs in the simulator and on Jacky's own iPhone 17
 Pro Max, installed over the cable with his free Apple ID (see "On Jacky's
-iPhone" below). **That signing lasts 7 days: build 6 went on the phone
-on 24 Sep and stops opening around 1 Oct.** Plug the phone in (or have it on
-the same Wi-Fi) and run `sh scripts/install-on-iphone.sh` to renew it; data
-survives. A renewal after a new profile may need Settings → General → VPN &
-Device Management → trust the Apple ID again.
+iPhone" below). **That signing lasts 7 days: it was last renewed from the
+MacBook Air on 1 Oct, so renew it from the Mac mini before 8 Oct.** Plug the
+phone in (or have it on the same Wi-Fi) and run `sh scripts/install-on-iphone.sh`
+to renew it; data survives. A renewal after a new profile may need Settings →
+General → VPN & Device Management → trust the Apple ID again.
 
-- **Code:** `~/plancy` (git, 40 commits, all work committed, no remote).
+- **Machine:** since 2 Oct, the **M4 Mac mini** (Mac user `clancy`, Xcode 27,
+  Node 24 LTS at `/usr/local/bin/node`). It was built on the MacBook Air before
+  that; the Air is Jacky's personal Mac again. The first simulator build on the
+  mini succeeded on 2 Oct. Not yet done from the mini: an iPhone install —
+  Xcode needs the signing Apple ID added (Settings → Accounts) first.
+- **Code:** `~/plancy` (git, all work committed; private on GitHub as
+  `jackywong29/plancy`).
   Project notes live in `AGENTS.md`; seven specs live in `docs/`.
 - **Old web app:** `~/daily-planner` (git, untouched, still runs). It stays as
   the reference and keeps working until the iOS app replaces it.
@@ -97,17 +103,22 @@ npx tsc --noEmit                              # typecheck; keep it clean
 npm test                                      # 174 tests, ~1.5 s; keep them green
 ```
 
+On a **fresh clone**, `npm test` fails 17 widget tests until the widget bundle
+exists: run `node node_modules/expo-widgets/scripts/build-bundle.mjs` once
+(any iOS build also makes it).
+
 Two local quirks, both already handled:
 
-1. **CocoaPods** can't be installed normally on this Mac (system Ruby 2.6 is
-   too old, and Homebrew won't build a newer one until the Command Line Tools
-   for Xcode 27 are installed from Software Update). It lives in
-   `~/.plancy-tools/gems`, put on the PATH by `scripts/ios-env.sh`.
+1. **CocoaPods.** On the Mac mini it comes from Homebrew (`brew install
+   cocoapods`, 1.17.0). On the MacBook Air it couldn't be installed normally
+   (system Ruby 2.6 too old), so it lived in `~/.plancy-tools/gems`, put on the
+   PATH by `scripts/ios-env.sh`. Sourcing that script on the mini is harmless —
+   its folders don't exist there, and it still sets a UTF-8 `LANG`.
 2. **UIScene life cycle.** The iOS 27 SDK refuses to launch an app that
    doesn't adopt it, and the Expo template doesn't yet. `plugins/with-scene-lifecycle.js`
    adds it on every `expo prebuild`. Delete the plugin once Expo ships this.
 
-The **iOS Simulator tool panel does not attach** on this Mac ("Xcode is
+The **iOS Simulator tool panel did not attach** on the MacBook Air ("Xcode is
 installed but not selected", although `xcode-select -p` is correct). Work
 around it from the command line:
 

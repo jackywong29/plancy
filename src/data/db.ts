@@ -7,7 +7,7 @@
  */
 import * as SQLite from 'expo-sqlite';
 
-import type { Idea, JournalEntry, MoneyEntry, Settings, Task } from './types';
+import type { Idea, JournalEntry, MoneyEntry, Series, Settings, Task } from './types';
 
 export const db = SQLite.openDatabaseSync('plancy.db');
 
@@ -23,10 +23,26 @@ CREATE TABLE IF NOT EXISTS tasks (
   repeat TEXT NOT NULL DEFAULT '',
   seriesId TEXT NOT NULL DEFAULT '',
   done INTEGER NOT NULL DEFAULT 0,
+  carriedFrom TEXT NOT NULL DEFAULT '',
   createdAt INTEGER NOT NULL,
   syncedAt INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS tasks_by_date ON tasks (date);
+
+/* Repeating tasks: the rule and what new copies take (data/repeats.ts). */
+CREATE TABLE IF NOT EXISTS series (
+  id TEXT PRIMARY KEY NOT NULL,
+  repeat TEXT NOT NULL,
+  start TEXT NOT NULL,
+  until TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  time TEXT NOT NULL,
+  remind INTEGER NOT NULL DEFAULT 1,
+  position INTEGER NOT NULL DEFAULT 0,
+  createdAt INTEGER NOT NULL,
+  syncedAt INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS journal (
   id TEXT PRIMARY KEY NOT NULL,
@@ -89,6 +105,7 @@ export function migrate(): void {
   // Tasks from before the per-task switch were all reminded (it followed the
   // global setting), so they keep that.
   if (!taskCols.includes('remind')) db.execSync('ALTER TABLE tasks ADD COLUMN remind INTEGER NOT NULL DEFAULT 1');
+  if (!taskCols.includes('carriedFrom')) db.execSync("ALTER TABLE tasks ADD COLUMN carriedFrom TEXT NOT NULL DEFAULT ''");
   const ideaCols = db.getAllSync<{ name: string }>('PRAGMA table_info(ideas)').map((c) => c.name);
   if (!ideaCols.includes('done')) db.execSync('ALTER TABLE ideas ADD COLUMN done INTEGER NOT NULL DEFAULT 0');
   // Rows from before series existed: repeating tasks that look alike become one
@@ -103,6 +120,19 @@ export function migrate(): void {
     ) WHERE seriesId = '' AND repeatMonthly = 1;
     UPDATE money SET seriesId = id WHERE seriesId = '';
   `);
+  const { user_version: version } = db.getFirstSync<{ user_version: number }>('PRAGMA user_version') ?? { user_version: 0 };
+  if (version < 1) {
+    // Copies of repeating tasks made before series existed had random ids.
+    // They take the ids a series gives its copies now (seriesId@date), so a
+    // copy deleted from here on stays deleted. The first copy keeps its id,
+    // which is already the series id. OR IGNORE skips the odd duplicate
+    // copy on one day, which keeps its old id and does no harm.
+    db.execSync(`
+      UPDATE OR IGNORE tasks SET id = seriesId || '@' || date
+        WHERE repeat != '' AND id != seriesId AND instr(id, '@') = 0;
+      PRAGMA user_version = 1;
+    `);
+  }
 }
 
 export function uid(): string {
@@ -124,6 +154,21 @@ const asTask = (r: Row): Task => ({
   repeat: String(r.repeat) as Task['repeat'],
   seriesId: String(r.seriesId ?? '') || String(r.id),
   done: Number(r.done) === 1,
+  carriedFrom: String(r.carriedFrom ?? '').split(',').filter(Boolean),
+  createdAt: Number(r.createdAt),
+  syncedAt: Number(r.syncedAt),
+});
+
+const asSeries = (r: Row): Series => ({
+  id: String(r.id),
+  repeat: String(r.repeat) as Series['repeat'],
+  start: String(r.start),
+  until: String(r.until ?? ''),
+  title: String(r.title),
+  notes: String(r.notes ?? ''),
+  time: String(r.time),
+  remind: Number(r.remind ?? 1) === 1,
+  position: Number(r.position ?? 0),
   createdAt: Number(r.createdAt),
   syncedAt: Number(r.syncedAt),
 });
@@ -164,23 +209,45 @@ const asMoney = (r: Row): MoneyEntry => ({
 export function loadAll() {
   return {
     tasks: db.getAllSync<Row>('SELECT * FROM tasks ORDER BY date, time').map(asTask),
+    series: db.getAllSync<Row>('SELECT * FROM series').map(asSeries),
     journal: db.getAllSync<Row>('SELECT * FROM journal ORDER BY date DESC').map(asEntry),
     ideas: db.getAllSync<Row>('SELECT * FROM ideas ORDER BY createdAt DESC').map(asIdea),
     money: db.getAllSync<Row>('SELECT * FROM money ORDER BY createdAt').map(asMoney),
   };
 }
 
+/** Ids of deleted records of one kind; the series top-up checks it before making a copy. */
+export function loadGone(kind: 'tasks'): Set<string> {
+  return new Set(db.getAllSync<{ id: string }>('SELECT id FROM tombstones WHERE kind = ?', [kind]).map((r) => r.id));
+}
+
 /* ---------- writes ---------- */
 
 export function saveTask(t: Task): void {
   db.runSync(
-    `INSERT INTO tasks (id, date, time, title, notes, position, remind, repeat, seriesId, done, createdAt, syncedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO tasks (id, date, time, title, notes, position, remind, repeat, seriesId, done, carriedFrom, createdAt, syncedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        date = excluded.date, time = excluded.time, title = excluded.title, notes = excluded.notes,
        position = excluded.position, remind = excluded.remind, repeat = excluded.repeat,
-       seriesId = excluded.seriesId, done = excluded.done, syncedAt = excluded.syncedAt`,
-    [t.id, t.date, t.time, t.title, t.notes, t.position, t.remind ? 1 : 0, t.repeat, t.seriesId, t.done ? 1 : 0, t.createdAt, t.syncedAt],
+       seriesId = excluded.seriesId, done = excluded.done, carriedFrom = excluded.carriedFrom,
+       syncedAt = excluded.syncedAt`,
+    [
+      t.id, t.date, t.time, t.title, t.notes, t.position, t.remind ? 1 : 0, t.repeat, t.seriesId, t.done ? 1 : 0,
+      t.carriedFrom.join(','), t.createdAt, t.syncedAt,
+    ],
+  );
+}
+
+export function saveSeries(s: Series): void {
+  db.runSync(
+    `INSERT INTO series (id, repeat, start, until, title, notes, time, remind, position, createdAt, syncedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       repeat = excluded.repeat, start = excluded.start, until = excluded.until, title = excluded.title,
+       notes = excluded.notes, time = excluded.time, remind = excluded.remind, position = excluded.position,
+       syncedAt = excluded.syncedAt`,
+    [s.id, s.repeat, s.start, s.until, s.title, s.notes, s.time, s.remind ? 1 : 0, s.position, s.createdAt, s.syncedAt],
   );
 }
 
@@ -218,7 +285,7 @@ export function saveMoney(m: MoneyEntry): void {
   );
 }
 
-export function removeRecord(kind: 'tasks' | 'journal' | 'ideas' | 'money', id: string): void {
+export function removeRecord(kind: 'tasks' | 'series' | 'journal' | 'ideas' | 'money', id: string): void {
   db.runSync(`DELETE FROM ${kind} WHERE id = ?`, [id]);
   db.runSync('INSERT OR REPLACE INTO tombstones (id, kind, deletedAt) VALUES (?, ?, ?)', [id, kind, Date.now()]);
 }
@@ -229,12 +296,12 @@ export function forgetTombstone(id: string): void {
 }
 
 /**
- * Deletes every task, journal entry, idea and finance entry, each with its
+ * Deletes every task, series, journal entry, idea and finance entry, each with its
  * tombstone like any other delete. Settings stay. Test builds only.
  */
 export function eraseAll(): void {
   db.withTransactionSync(() => {
-    for (const kind of ['tasks', 'journal', 'ideas', 'money'] as const) {
+    for (const kind of ['tasks', 'series', 'journal', 'ideas', 'money'] as const) {
       for (const { id } of db.getAllSync<{ id: string }>(`SELECT id FROM ${kind}`)) removeRecord(kind, id);
     }
   });

@@ -146,6 +146,8 @@ function Shell() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="currency" options={{ title: 'Currency' }} />
+        <Stack.Screen name="privacy" options={{ title: 'Privacy policy' }} />
+        <Stack.Screen name="licences" options={{ title: 'Open-source licences' }} />
         <Stack.Screen name="money" options={{ presentation: 'modal', headerShadowVisible: false }} />
         <Stack.Screen name="task" options={{ presentation: 'modal', headerShadowVisible: false }} />
       </Stack>

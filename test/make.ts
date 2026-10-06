@@ -2,7 +2,7 @@
  * Records for tests, filled with dull defaults so each test only spells out
  * what it's about.
  */
-import type { MoneyEntry, Settings, Task } from '@/data/types';
+import type { MoneyEntry, Series, Settings, Task } from '@/data/types';
 
 let next = 0;
 
@@ -19,6 +19,25 @@ export function task(fields: Partial<Task> = {}): Task {
     repeat: '',
     seriesId: id,
     done: false,
+    carriedFrom: [],
+    createdAt: 0,
+    syncedAt: 0,
+    ...fields,
+  };
+}
+
+export function series(fields: Partial<Series> = {}): Series {
+  const id = fields.id ?? `s${(next += 1)}`;
+  return {
+    id,
+    repeat: 'daily',
+    start: '2026-09-24',
+    until: '',
+    title: `Series ${id}`,
+    notes: '',
+    time: '09:00',
+    remind: true,
+    position: 0,
     createdAt: 0,
     syncedAt: 0,
     ...fields,
@@ -57,6 +76,13 @@ export function settings(fields: Partial<Settings> = {}): Settings {
     lockScope: 'private',
     nudge: false,
     nudgeHour: 8,
+    nudgeVoice: 'warm',
+    evening: false,
+    eveningHour: 20,
+    // Off here (it's on in the app) so a test with tasks on past days sees
+    // them stay put; the carry-over tests turn it on.
+    carryOver: false,
+    carrySince: '',
     widgetStyle: 'progress',
     calendar: 'week',
     onboarded: true,

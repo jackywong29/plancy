@@ -40,7 +40,11 @@ src/components/ui.tsx      Screen, BigTitle, Card, Row, Tick, Chip, Empty…
 src/data/types.ts          records; every one carries syncedAt for iCloud sync
 src/data/db.ts             SQLite schema + reads/writes + tombstones
 src/data/store.tsx         in-memory store, writes through to SQLite (opens it on import)
-src/data/select.ts         selectors: streak, countsByDate, tasksForDay, monthTotals
+src/data/select.ts         selectors: streak, countsByDate, tasksForDay, movedOn, monthTotals
+src/data/repeats.ts        repeating tasks as Series; copies, this-and-future edits; bills
+src/data/carry.ts          carry-over of unfinished tasks; asOf() for plans made ahead
+src/legal/                 privacy policy (one source, app + website) and licences.json
+src/app/privacy.tsx        Settings → Privacy policy; src/app/licences.tsx the licences
 src/data/seed.ts           sample rows, __DEV__ only
 src/lib/format.ts          dates in local time, times, money in minor units
 src/theme/palette.ts       12 swatches + contrast maths (inkOn, accentTextFor)
@@ -76,7 +80,30 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
   already the component's root.
 - Widget code (`widgets/`) may only use `@expo/ui/swift-ui` and nothing
   declared outside the component; all data comes in as props.
-- Notifications: 64 pending max on iOS. Reminders take up to 53, the nudge 7.
+- Notifications: 64 pending max on iOS; plancy keeps 60. Each nudge that is
+  on (morning, evening) reserves 7, and reminders get the rest
+  (`reminderBudget` in lib/reminders.ts).
+- **A repeating task is a `Series`** (`data/repeats.ts`): the rule, the start
+  day, and what new copies take. Copies get worked-out ids
+  (`copyId`: `seriesId@date`), never random ones, so a tombstone keeps a
+  deleted copy deleted. Editing or deleting a copy asks "this task only /
+  this and future tasks" (`askScope`, components/scope-sheet.ts). A series
+  record is never deleted, only ended (`until`).
+- **Carry-over** (`data/carry.ts`) moves unfinished one-off tasks to today.
+  The days a task left stay in `carriedFrom` and still count as unfinished
+  there, so streaks stay honest. Anything that plans a day ahead (nudges, the
+  widget) reads that day through `asOf(tasks, day, settings)`. Screens use
+  the store's `today`, which turns over at midnight; don't cache `todayIso()`.
+- A ticked row that moves (finished anytime tasks, done ideas) waits
+  `useSettle()` (lib/settle.ts) before it glides, so the tick is seen.
+- **The privacy policy must stay true** (`src/legal/privacy.ts`, shown in
+  Settings → Privacy policy). Anything that sends data off the phone (iCloud
+  sync, a crash reporter, analytics) changes the policy and its date first;
+  then `node scripts/legal-pages.mjs` refreshes the website copy in
+  `docs/legal/`. A test fails if the two differ.
+- **Open-source licences**: after adding, removing or updating a dependency,
+  run `node scripts/licences.mjs` (it bundles the app to see what ships). The
+  legal test fails until you do.
 - Haptics go through `haptic()` in src/lib/haptics.ts, fired by the handler
   that made the change (one owner per event). `Tick` itself is silent.
 - Widget layouts must never throw: default every prop (see widgets/TodayWidget.tsx).
@@ -108,8 +135,7 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
 ## Not built yet
 
 iCloud sync (native CloudKit module), import from the web planner's export
-file, localisation of strings (all UI text is English inline for now), and
-"this task / this and future" for repeating tasks (HANDOFF, Open questions).
+file, and localisation of strings (all UI text is English inline for now).
 
 ## Built so far
 
@@ -119,5 +145,8 @@ monthly bills (`src/data/repeats.ts`); reminders scheduled on the phone
 (`src/lib/reminders.ts`); journal search; finance add sheet; settings with
 appearance, the 12-colour palette and a custom colour; Face ID lock
 (`src/lib/lock.tsx`); currency picker; month calendar on Today; morning nudge
-(`src/lib/nudges.ts`, opt-in); Finance cash-flow chart; home screen widget
-(`widgets/TodayWidget.tsx`, fed by `src/lib/widget.ts`).
+(`src/lib/nudges.ts`, opt-in, three voices + mix); evening check-in (opt-in);
+Finance cash-flow chart; home screen widget (`widgets/TodayWidget.tsx`, fed by
+`src/lib/widget.ts`); carry-over of unfinished tasks; finished anytime tasks
+sink; ideas swipe right to complete; "this task only / this and future" for
+repeating tasks.

@@ -14,15 +14,29 @@ export function tasksForDay(tasks: Task[], date: string): Task[] {
   return dayOrder(tasks.filter((t) => t.date === date));
 }
 
+/**
+ * Tasks planned and finished, per day. A task carried over from a day still
+ * counts there, unfinished (see data/carry.ts).
+ */
 export function countsByDate(tasks: Task[]): Map<string, { total: number; done: number }> {
   const map = new Map<string, { total: number; done: number }>();
+  const entry = (date: string) => {
+    let e = map.get(date);
+    if (!e) map.set(date, (e = { total: 0, done: 0 }));
+    return e;
+  };
   for (const t of tasks) {
-    const entry = map.get(t.date) ?? { total: 0, done: 0 };
-    entry.total += 1;
-    if (t.done) entry.done += 1;
-    map.set(t.date, entry);
+    const e = entry(t.date);
+    e.total += 1;
+    if (t.done) e.done += 1;
+    for (const date of t.carriedFrom) entry(date).total += 1;
   }
   return map;
+}
+
+/** Tasks that sat unfinished on `date` and were carried on to a later day. */
+export function movedOn(tasks: Task[], date: string): Task[] {
+  return tasks.filter((t) => t.carriedFrom.includes(date));
 }
 
 /** Days in a row, ending today, where everything planned was done. */

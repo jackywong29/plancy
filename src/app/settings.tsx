@@ -3,7 +3,7 @@ import { labelsHidden, opacity, scaleEffect } from '@expo/ui/swift-ui/modifiers'
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { useToast } from '@/components/toast';
 import { Card, Icon, Row, Screen, SectionHead, Segmented } from '@/components/ui';
@@ -28,9 +28,34 @@ function nudgeLabel(hour: number, hour12: boolean): string {
   return `${time} ${suffix}`.trim();
 }
 
+const VERSION = Constants.expoConfig?.version ?? '';
+const BUILD = Constants.expoConfig?.ios?.buildNumber ?? '';
+const SUPPORT = 'support@clancyhq.com';
+/** plancy has no licence of its own: it's sold under Apple's standard EULA, as most App Store apps are. */
+const APPLE_EULA = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+
+/** Mail, addressed and with the version in, so a support email says which build it's about. */
+async function emailSupport() {
+  haptic('select');
+  const body = encodeURIComponent(`\n\n—\nplancy ${VERSION} (${BUILD}), iOS ${Platform.Version}`);
+  try {
+    await Linking.openURL(`mailto:${SUPPORT}?subject=${encodeURIComponent('plancy')}&body=${body}`);
+  } catch {
+    // No mail account on this iPhone.
+    Alert.alert('Email us', `Write to ${SUPPORT} from any email app, and we'll get back to you.`);
+  }
+}
+
 const LOCK_SCOPES: { value: Settings['lockScope']; label: string }[] = [
   { value: 'app', label: 'Whole app' },
   { value: 'private', label: 'Journal & Finance' },
+];
+
+const VOICES: { value: Settings['nudgeVoice']; label: string }[] = [
+  { value: 'mix', label: 'Mix' },
+  { value: 'warm', label: 'Warm' },
+  { value: 'gentle', label: 'Gentle' },
+  { value: 'playful', label: 'Playful' },
 ];
 
 const WIDGET_STYLES: { value: Settings['widgetStyle']; label: string }[] = [
@@ -74,7 +99,7 @@ export default function SettingsScreen() {
    * Turning either switch on is the person asking for notifications, which is
    * the one moment plancy is allowed to spend iOS's single prompt.
    */
-  async function setNotifySetting(key: 'remind' | 'nudge', on: boolean) {
+  async function setNotifySetting(key: 'remind' | 'nudge' | 'evening', on: boolean) {
     setSetting(key, on);
     if (!on) return;
     await askPermission();
@@ -91,10 +116,11 @@ export default function SettingsScreen() {
     }
   }
 
-  async function sendPreview() {
+  async function sendPreview(which: 'morning' | 'evening') {
     haptic('select');
-    const ok = await previewNudge(tasks, settings);
-    if (ok) toast('Your nudge arrives in 5 seconds. Lock your phone to see it.');
+    const result = await previewNudge(tasks, settings, 5, which);
+    if (result === 'sent') toast('Your nudge arrives in 5 seconds. Lock your phone to see it.');
+    else if (result === 'empty') toast('Nothing is left open today, so tonight’s check-in wouldn’t come.');
     else toast('Notifications are off for plancy in iPhone Settings.');
   }
 
@@ -207,8 +233,29 @@ export default function SettingsScreen() {
         </Row>
       </Card>
 
+      <SectionHead title="Tasks" />
+      <Card>
+        <Row first>
+          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Carry over unfinished tasks</Text>
+          <Switch
+            value={settings.carryOver}
+            onValueChange={(on) => {
+              haptic('select');
+              setSetting('carryOver', on);
+            }}
+            trackColor={{ true: theme.accent }}
+            accessibilityLabel="Carry over unfinished tasks"
+          />
+        </Row>
+      </Card>
+      <Text style={[styles.footnote, { color: theme.ink2 }]}>
+        {settings.carryOver
+          ? 'What’s left at midnight moves to the next day, at the top of Anytime. Repeating tasks stay put, and the day it left still counts as unfinished.'
+          : 'Unfinished tasks stay on their day.'}
+      </Text>
+
       <SectionHead title="Reminders" />
-      {(settings.remind || settings.nudge) && notify !== 'granted' ? (
+      {(settings.remind || settings.nudge || settings.evening) && notify !== 'granted' ? (
         <Card style={{ marginBottom: Space.gap }}>
           <Row
             first
@@ -264,7 +311,7 @@ export default function SettingsScreen() {
         Reminders are scheduled on this iPhone, so they arrive with no internet.
       </Text>
 
-      <SectionHead title="Morning nudge" />
+      <SectionHead title="Nudges" />
       <Card>
         <Row first>
           <View style={{ flex: 1 }}>
@@ -294,13 +341,53 @@ export default function SettingsScreen() {
           </Row>
         ) : null}
         {settings.nudge ? (
-          <Row onPress={() => void sendPreview()} accessibilityLabel="Send a preview of the morning nudge">
+          <Row onPress={() => void sendPreview('morning')} accessibilityLabel="Send a preview of the morning nudge">
             <Text style={{ flex: 1, color: theme.accentText, fontSize: Type.body }}>Send a preview</Text>
           </Row>
         ) : null}
       </Card>
+      <Card style={{ marginTop: Space.gap }}>
+        <Row first>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.ink, fontSize: Type.body }}>Evening check-in</Text>
+            <Text style={{ color: theme.ink2, fontSize: Type.footnote }}>Only when something is still open</Text>
+          </View>
+          <Switch
+            value={settings.evening}
+            onValueChange={(on) => void setNotifySetting('evening', on)}
+            trackColor={{ true: theme.accent }}
+            accessibilityLabel="Evening check-in"
+          />
+        </Row>
+        {settings.evening ? (
+          <Row>
+            <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>At</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${nudgeLabel(settings.eveningHour, settings.hour12)}, tap to change`}
+              onPress={() => {
+                const hours = [18, 19, 20, 21, 22];
+                haptic('select');
+                setSetting('eveningHour', hours[(hours.indexOf(settings.eveningHour) + 1) % hours.length]);
+              }}>
+              <Text style={{ color: theme.accentText, fontSize: Type.body }}>{nudgeLabel(settings.eveningHour, settings.hour12)}</Text>
+            </Pressable>
+          </Row>
+        ) : null}
+        {settings.evening ? (
+          <Row onPress={() => void sendPreview('evening')} accessibilityLabel="Send a preview of the evening check-in">
+            <Text style={{ flex: 1, color: theme.accentText, fontSize: Type.body }}>Send a preview</Text>
+          </Row>
+        ) : null}
+      </Card>
+      {settings.nudge || settings.evening ? (
+        <Card style={{ marginTop: Space.gap, padding: 12, gap: 10 }}>
+          <Text style={{ color: theme.ink, fontSize: Type.body, paddingHorizontal: 4 }}>Voice</Text>
+          <Segmented label="Nudge voice" options={VOICES} value={settings.nudgeVoice} onChange={(v) => setSetting('nudgeVoice', v)} />
+        </Card>
+      ) : null}
       <Text style={[styles.footnote, { color: theme.ink2 }]}>
-        Mondays add last week's tally, the 1st adds last month's. Turn it off here any time.
+        Mondays add last week's tally, the 1st adds last month's. Mix takes turns with the other three voices, a day each.
       </Text>
 
       <SectionHead title="Widget" />
@@ -357,7 +444,30 @@ export default function SettingsScreen() {
           ? settings.lockScope === 'app'
             ? `plancy asks for ${lock.method} when it opens and whenever you come back to it.`
             : `Journal and Finance ask for ${lock.method} before they show anything. Today and Ideas stay open.`
-          : 'Your data stays on your devices and in your own iCloud. Nobody at Clancy can see it.'}
+          : 'Everything stays on this iPhone, and in your own backups. Nobody at Clancy can see it.'}
+      </Text>
+
+      <SectionHead title="About" />
+      <Card>
+        <Row first onPress={() => router.push('/privacy')} accessibilityLabel="Privacy policy">
+          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Privacy policy</Text>
+          <Icon name="chevron.right" size={14} color={theme.ink3} />
+        </Row>
+        <Row onPress={() => void Linking.openURL(APPLE_EULA)} accessibilityLabel="Terms of use. Opens Apple's website.">
+          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Terms of use</Text>
+          <Icon name="arrow.up.right" size={14} color={theme.ink3} />
+        </Row>
+        <Row onPress={() => void emailSupport()} accessibilityLabel={`Contact support. Emails ${SUPPORT}.`}>
+          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Contact support</Text>
+          <Icon name="envelope" size={16} color={theme.ink3} />
+        </Row>
+        <Row onPress={() => router.push('/licences')} accessibilityLabel="Open-source licences">
+          <Text style={{ flex: 1, color: theme.ink, fontSize: Type.body }}>Open-source licences</Text>
+          <Icon name="chevron.right" size={14} color={theme.ink3} />
+        </Row>
+      </Card>
+      <Text style={[styles.footnote, { color: theme.ink2 }]}>
+        plancy {VERSION} ({BUILD}) · © 2026 Clancy Sdn Bhd. Sold under Apple's standard licence for App Store apps.
       </Text>
 
       {TEST_TOOLS ? (

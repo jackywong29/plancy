@@ -16,6 +16,7 @@ import { addUserInteractionListener } from 'expo-widgets';
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
+import { asOf } from '@/data/carry';
 import { streak, tasksForDay } from '@/data/select';
 import type { Settings, Task } from '@/data/types';
 import { addDays, formatDayShort, fromIso, splitTime, todayIso } from '@/lib/format';
@@ -107,7 +108,9 @@ function write(tasks: Task[], settings: Settings) {
 
 /** What the widget is sent for `day`. Exported for the widget tests. */
 export function propsFor(tasks: Task[], settings: Settings, day: string, today: string): TodayWidgetProps {
-  const list = tasksForDay(tasks, day);
+  // A later day shows today's leftovers already moved in, as plancy will
+  // when it next opens (iOS doesn't wake it at midnight to do it then).
+  const list = tasksForDay(asOf(tasks, day, settings), day);
   // Open tasks first, then finished ones, each in time order.
   const ordered = [...list.filter((t) => !t.done), ...list.filter((t) => t.done)].slice(0, MAX_TASKS);
   const todayList = tasksForDay(tasks, today);

@@ -35,12 +35,17 @@ export function seedSample(): void {
     [1, '11:00', 'Dentist', '', false],
     [2, '19:30', 'Badminton', 'weekly', false],
   ];
-  // Repeating tasks with the same title belong to one series.
+  // Repeating tasks with the same title belong to one series: the earliest is
+  // its first copy, and later ones take the ids a series gives its copies.
+  // The series record itself is made on load (missingSeries).
   const series = new Map<string, string>();
-  for (const [offset, time, title, repeat, done] of tasks) {
-    const id = uid();
-    const seriesId = repeat ? (series.get(title) ?? (series.set(title, id), id)) : id;
-    saveTask({ id, date: iso(offset), time, title, notes: '', position: 0, remind: true, repeat, seriesId, done, createdAt: now, syncedAt: now });
+  for (const [offset, time, title, repeat, done] of [...tasks].sort((a, b) => a[0] - b[0])) {
+    const date = iso(offset);
+    const known = repeat ? series.get(title) : undefined;
+    const id = known ? `${known}@${date}` : uid();
+    if (repeat && !known) series.set(title, id);
+    const seriesId = known ?? id;
+    saveTask({ id, date, time, title, notes: '', position: 0, remind: true, repeat, seriesId, done, carriedFrom: [], createdAt: now, syncedAt: now });
   }
 
   const entries: [number, string, string][] = [

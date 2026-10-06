@@ -1,5 +1,7 @@
 /**
- * A row you can tap, or swipe left to reveal actions.
+ * A row you can tap, or swipe left to reveal actions. Optionally, swiping
+ * right does one thing straight away (`leading`), the way Mail marks a
+ * message read: the row springs back as the action happens.
  *
  * The finger that swipes also lifts off the row, and React Native counts that
  * lift as a tap, which used to open the task right after revealing its
@@ -7,7 +9,8 @@
  * down; tapping a row whose actions are showing closes them, as in Mail.
  *
  * Swipes are invisible to VoiceOver, so every action is also passed on as an
- * accessibility action.
+ * accessibility action. The leading one isn't: it must repeat a button that
+ * is already in the row (and so in `inRowActions`), like the tick.
  */
 import { useRef, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
@@ -34,6 +37,7 @@ const ACTION_WIDTH = 76;
 
 export function SwipeRow({
   actions,
+  leading,
   inRowActions = [],
   onPress,
   style,
@@ -42,6 +46,8 @@ export function SwipeRow({
   ...a11y
 }: {
   actions: SwipeAction[];
+  /** Swipe right to do this at once. Must also be one of the row's own buttons. */
+  leading?: SwipeAction;
   /**
    * VoiceOver reads the row as one element, so the buttons inside it can't be
    * reached on their own; they are offered as actions on the row instead.
@@ -67,15 +73,34 @@ export function SwipeRow({
       ref={swipe}
       friction={2}
       rightThreshold={40}
+      leftThreshold={56}
       overshootRight={false}
+      overshootLeft={false}
       containerStyle={containerStyle}
       onSwipeableOpenStartDrag={() => (swiped.current = true)}
       onSwipeableCloseStartDrag={() => (swiped.current = true)}
-      onSwipeableWillOpen={() => {
+      onSwipeableWillOpen={(direction) => {
+        // Swiped right far enough: the leading action happens, and the row
+        // springs back. Its own handler owns the haptic.
+        if (direction === 'right' && leading) {
+          leading.onPress();
+          swipe.current?.close();
+          return;
+        }
         if (!open.current) haptic('reveal');
         open.current = true;
       }}
       onSwipeableWillClose={() => (open.current = false)}
+      renderLeftActions={
+        leading
+          ? () => (
+              <View style={[styles.leading, { backgroundColor: leading.background }]}>
+                <Icon name={leading.icon} size={22} color={leading.ink} />
+                <Text style={[styles.actionLabel, { color: leading.ink }]}>{leading.label}</Text>
+              </View>
+            )
+          : undefined
+      }
       renderRightActions={() => (
         <View style={styles.actions}>
           {actions.map((a) => (
@@ -113,5 +138,6 @@ export function SwipeRow({
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row' },
   action: { width: ACTION_WIDTH, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  leading: { width: ACTION_WIDTH + 12, alignItems: 'center', justifyContent: 'center', gap: 3 },
   actionLabel: { fontSize: Type.caption, fontWeight: '600' },
 });

@@ -17,34 +17,49 @@ import Animated, {
 
 import { Calendar } from '@/components/calendar';
 import { DotBurst, useCelebrate } from '@/components/celebration';
-import { moveActions, Sortable } from '@/components/sortable';
+import { askScope } from '@/components/scope-sheet';
+import { moveActions, Sortable, type SortableRef } from '@/components/sortable';
 import { TaskRow } from '@/components/task-row';
 import { useToast } from '@/components/toast';
 import { BigTitle, Card, Empty, Icon, RoundButton, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
-import { countsByDate, streak, tasksForDay } from '@/data/select';
-import { useStore } from '@/data/store';
+import { anytimeOrder, isAnytime } from '@/data/order';
+import { countsByDate, movedOn, streak, tasksForDay } from '@/data/select';
+import { useStore, type Scope } from '@/data/store';
 import type { Task } from '@/data/types';
 import { useAddAction } from '@/lib/add-action';
-import { isAnytime } from '@/data/order';
 import { celebrationFor } from '@/lib/celebrate';
-import { addDays, addMonths, formatDayLong, isoMonth, todayIso } from '@/lib/format';
+import { addDays, addMonths, formatDayLong, formatDayShort, isoMonth } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { useSettle } from '@/lib/settle';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 const GLIDE = LinearTransition.duration(280);
 
 export default function TodayScreen() {
-  const { tasks, settings, setSetting, toggleTask, deleteTask, restoreTask, ensureRepeats, reorderTasks } = useStore();
+  const { tasks, today, settings, setSetting, toggleTask, deleteTask, ensureRepeats, reorderTasks } = useStore();
   const theme = useTheme();
   const router = useRouter();
   const toast = useToast();
   const celebrate = useCelebrate();
-  const today = todayIso();
   const [day, setDay] = useState(today);
   const [month, setMonth] = useState(isoMonth(today));
   const [burst, setBurst] = useState(0);
   const bigText = useAccessibilitySize();
   const seen = useRef(new Set<string>());
+  const sortable = useRef<SortableRef>(null);
+  const { hold, release, placedDone } = useSettle();
+
+  // The day turned while plancy was open. If it was showing today, it moves
+  // on with it, the way it would have opened.
+  const shownToday = useRef(today);
+  useEffect(() => {
+    if (shownToday.current === today) return;
+    if (day === shownToday.current) {
+      setDay(today);
+      setMonth(isoMonth(today));
+    }
+    shownToday.current = today;
+  }, [today, day]);
 
   // Repeating tasks are created ahead as far as the calendar can see.
   useEffect(() => {
@@ -52,15 +67,39 @@ export default function TodayScreen() {
     ensureRepeats(settings.calendar === 'month' && monthEnd > addDays(day, 7) ? monthEnd : addDays(day, 7));
   }, [day, month, settings.calendar, ensureRepeats]);
 
-  const list = tasksForDay(tasks, day);
-  // Timed tasks follow the clock; anytime ones follow the order they're dragged into.
-  const timedList = list.filter((t) => !isAnytime(t));
-  const anytimeList = list.filter(isAnytime);
-  const anytimeIds = anytimeList.map((t) => t.id);
+  const dayTasks = tasks.filter((t) => t.date === day);
+  // Timed tasks follow the clock. Anytime ones follow the order they're
+  // dragged into, open above finished; a just-ticked one waits a moment in
+  // its old place (useSettle) before it glides to the new one.
+  const timedList = tasksForDay(tasks, day).filter((t) => !isAnytime(t));
+  const anytimeList = anytimeOrder(dayTasks.filter(isAnytime), placedDone);
+  const openAnytime = anytimeList.filter((t) => !placedDone(t));
+  const openIds = openAnytime.map((t) => t.id);
+  const list = [...timedList, ...anytimeList];
+  // Tasks that sat unfinished here and were carried on to a later day still
+  // belong to this day's tally, faded, so a past day tells the truth.
+  const moved = movedOn(tasks, day);
+  const total = list.length + moved.length;
   const done = list.filter((t) => t.done).length;
-  const allDone = list.length > 0 && done === list.length;
+  const allDone = total > 0 && done === total;
   const counts = countsByDate(tasks);
   const days = streak(tasks, today);
+
+  // What the glide needs when a held row's moment is up, as of the latest draw.
+  const latest = useRef({ anytime: dayTasks.filter(isAnytime), shown: anytimeList.map((t) => t.id), placedDone });
+  latest.current = { anytime: dayTasks.filter(isAnytime), shown: anytimeList.map((t) => t.id), placedDone };
+
+  /** A held anytime row's moment is up: slide it to where it belongs, then let go. */
+  function settle(id: string) {
+    const { anytime, shown, placedDone: placed } = latest.current;
+    const from = shown.indexOf(id);
+    const to = anytimeOrder(anytime, (t) => (t.id === id ? t.done : placed(t))).findIndex((t) => t.id === id);
+    if (!sortable.current || from < 0 || to < 0) {
+      release(id);
+      return;
+    }
+    sortable.current.glide(from, to, () => release(id));
+  }
 
   const title =
     day === today ? 'today' : day === addDays(today, 1) ? 'tomorrow' : day === addDays(today, -1) ? 'yesterday'
@@ -73,6 +112,7 @@ export default function TodayScreen() {
   function toggle(task: Task) {
     const nowDone = !task.done;
     toggleTask(task.id);
+    if (isAnytime(task)) hold(task.id, task.done, settle);
     if (!nowDone) {
       haptic('untick');
       return;
@@ -94,12 +134,15 @@ export default function TodayScreen() {
     }
   }
 
-  function remove(id: string) {
-    const task = tasks.find((t) => t.id === id);
-    if (!task) return;
-    haptic('remove');
-    deleteTask(id);
-    toast('Task deleted', { label: 'Undo', onPress: () => restoreTask(task) });
+  function remove(task: Task) {
+    const go = (scope: Scope) => {
+      haptic('remove');
+      release(task.id);
+      const undo = deleteTask(task.id, scope);
+      toast(scope === 'future' ? 'This and future tasks deleted' : 'Task deleted', { label: 'Undo', onPress: undo });
+    };
+    if (task.repeat) askScope('delete', { scheme: theme.scheme, tint: theme.accentText }, go);
+    else go('this');
   }
 
   // The tab bar's add button makes a task on whichever day is showing.
@@ -135,7 +178,7 @@ export default function TodayScreen() {
             crossfades when you pick another day. */}
         <Animated.View layout={GLIDE}>
           <Animated.View key={day} entering={FadeIn.duration(200)}>
-            {list.length > 0 ? (
+            {total > 0 ? (
               <Card style={styles.progress}>
                 {/* "2 of 5 done" and the streak sit side by side until the
                   text is large enough that the streak would run off the
@@ -145,7 +188,7 @@ export default function TodayScreen() {
                     <DoneTitle title={title} celebrate={burst} />
                   ) : (
                     <Text style={{ color: theme.ink, fontSize: Type.sectionTitle, fontWeight: '600' }}>
-                      {done} of {list.length} done
+                      {done} of {total} done
                     </Text>
                   )}
                   {days > 0 ? <Streak days={days} /> : null}
@@ -154,12 +197,15 @@ export default function TodayScreen() {
                   {list.map((t) => (
                     <ProgressDot key={t.id} done={t.done} />
                   ))}
+                  {moved.map((t) => (
+                    <ProgressDot key={`moved-${t.id}`} done={false} />
+                  ))}
                 </View>
                 {allDone ? <DotBurst id={burst} /> : null}
               </Card>
             ) : null}
 
-            {list.length === 0 ? (
+            {total === 0 ? (
               <View style={{ marginTop: 14 }}>
                 <Empty title="Nothing planned" body="Tap + above the tabs to add the first thing for this day." />
               </View>
@@ -177,7 +223,7 @@ export default function TodayScreen() {
                             hour12={settings.hour12}
                             onToggle={() => toggle(task)}
                             onEdit={() => router.push({ pathname: '/task', params: { id: task.id } })}
-                            onDelete={() => remove(task.id)}
+                            onDelete={() => remove(task)}
                           />
                         </Animated.View>
                       ))}
@@ -189,7 +235,9 @@ export default function TodayScreen() {
                     <SectionHead title="Anytime" />
                     <Card>
                       <Sortable
+                        ref={sortable}
                         items={anytimeList}
+                        fixedFrom={openAnytime.length}
                         onReorder={reorderTasks}
                         renderItem={(task, i, handle) => (
                           <TaskRow
@@ -198,17 +246,28 @@ export default function TodayScreen() {
                             hour12={settings.hour12}
                             onToggle={() => toggle(task)}
                             onEdit={() => router.push({ pathname: '/task', params: { id: task.id } })}
-                            onDelete={() => remove(task.id)}
+                            onDelete={() => remove(task)}
                             handle={handle}
-                            moveActions={moveActions(i, anytimeList.length, anytimeIds, reorderTasks)}
+                            // Only open ones move; finished ones stay at the bottom.
+                            moveActions={handle ? moveActions(i, openAnytime.length, openIds, reorderTasks) : []}
                           />
                         )}
                       />
                     </Card>
                   </>
                 ) : null}
+                {moved.length > 0 ? (
+                  <>
+                    <SectionHead title="Moved on" />
+                    <Card>
+                      {moved.map((task, i) => (
+                        <MovedRow key={task.id} task={task} first={i === 0} />
+                      ))}
+                    </Card>
+                  </>
+                ) : null}
                 <Text style={{ color: theme.ink3, fontSize: Type.footnote, textAlign: 'center', marginTop: 12 }}>
-                  {anytimeList.length > 1
+                  {openAnytime.length > 1
                     ? 'Swipe a task left to edit or delete it. Hold ≡ to drag.'
                     : 'Swipe a task left to edit or delete it.'}
                 </Text>
@@ -218,6 +277,33 @@ export default function TodayScreen() {
         </Animated.View>
       </LayoutAnimationConfig>
     </Screen>
+  );
+}
+
+/**
+ * A task that was left unfinished here and carried on: faded, with where it
+ * went. Nothing to tick — it lives on the day it moved to.
+ */
+function MovedRow({ task, first }: { task: Task; first: boolean }) {
+  const theme = useTheme();
+  const to = formatDayShort(task.date).replace(/,/g, '');
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${task.title}, not done this day, ${task.done ? 'finished on' : 'moved to'} ${formatDayLong(task.date)}`}
+      style={[
+        styles.moved,
+        { backgroundColor: theme.card },
+        !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.line },
+      ]}>
+      <Icon name="arrow.turn.down.right" size={16} color={theme.ink3} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: theme.ink2, fontSize: Type.body }}>{task.title}</Text>
+        <Text style={{ color: theme.ink3, fontSize: Type.footnote, marginTop: 1 }}>
+          {task.done ? `Done on ${to}` : `Moved to ${to}`}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -283,4 +369,5 @@ const styles = StyleSheet.create({
   streak: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   dot: { width: 14, height: 14, borderRadius: 7 },
+  moved: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 10, paddingHorizontal: 16 },
 });

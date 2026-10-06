@@ -81,11 +81,13 @@ export const Space = {
   radius: 14,
   row: 48,
   /**
-   * The floating tab bar's glass, measured from the bottom of the screen.
-   * The add button, the toast and every tab's scroll padding (FAB_CLEARANCE
-   * in components/ui.tsx) measure from here.
+   * Where the floating tab bar's glass ends, measured from the bottom of the
+   * screen (iPhone 18 Pro, iOS 27, 6 Oct). The add button, the toast and
+   * every tab's scroll padding (FAB_CLEARANCE in components/ui.tsx) measure
+   * from here. It was 72 until 6 Oct, which left the add button touching
+   * the glass.
    */
-  tabBarHeight: 72,
+  tabBarHeight: 83,
 } as const;
 
 const ThemeContext = createContext<Theme>(buildTheme('light', '#6D5EF0'));

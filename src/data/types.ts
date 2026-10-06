@@ -30,9 +30,43 @@ export type Task = {
   /** Free text under the title: details, a link, what to bring. Empty when there are none. */
   notes: string;
   repeat: Repeat;
-  /** Groups the instances of one repeating task. Equals the first instance's id. */
+  /**
+   * Groups the copies of one repeating task: the id of its `Series`, which is
+   * also the first copy's id. A one-off task's seriesId is its own id.
+   */
   seriesId: string;
   done: boolean;
+  /**
+   * The days this task sat unfinished before carry-over moved it on, oldest
+   * first. Each still counts as an unfinished task on that day, so moving a
+   * task forward never turns a missed day into a finished one.
+   */
+  carriedFrom: string[];
+  createdAt: number;
+  syncedAt: number;
+};
+
+/**
+ * A repeating task's rule, and what each new copy of it takes.
+ *
+ * Copies are made a week or so ahead (see data/repeats.ts) with ids worked
+ * out from the series and the date (`seriesId@date`), so a deleted copy's
+ * tombstone keeps it deleted, and two devices making the same copy make the
+ * same record.
+ */
+export type Series = {
+  /** The first copy's id. */
+  id: string;
+  repeat: Exclude<Repeat, ''>;
+  /** YYYY-MM-DD of the first copy. Its weekday, or day of the month, sets the rhythm. */
+  start: string;
+  /** The last day a copy may fall on; empty while the series runs on. */
+  until: string;
+  title: string;
+  notes: string;
+  time: string;
+  remind: boolean;
+  position: number;
   createdAt: number;
   syncedAt: number;
 };
@@ -105,6 +139,18 @@ export type Settings = {
   /** Morning nudge: opt-in, one notification a day at nudgeHour (0-23). */
   nudge: boolean;
   nudgeHour: number;
+  /** How the nudges talk. 'mix' takes turns with the other three, a day each. */
+  nudgeVoice: 'mix' | 'warm' | 'gentle' | 'playful';
+  /** Evening check-in: opt-in, at eveningHour, only on a day with something still open. */
+  evening: boolean;
+  eveningHour: number;
+  /** Unfinished one-off tasks move to the next day. */
+  carryOver: boolean;
+  /**
+   * Carry-over leaves days before this alone (YYYY-MM-DD), so switching it on
+   * moves yesterday's leftovers, not every unfinished task in history.
+   */
+  carrySince: string;
   /** What the small home screen widget shows. */
   widgetStyle: 'progress' | 'streak' | 'tasks';
   /** Today's calendar: the week strip, or the whole month. Remembers the last choice. */

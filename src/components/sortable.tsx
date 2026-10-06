@@ -13,8 +13,13 @@
  *
  * A drag is invisible to VoiceOver, so rows should also offer Move up and
  * Move down as accessibility actions — see `moveActions` below.
+ *
+ * Rows from `fixedFrom` on (finished tasks) have no handle and stay put; a
+ * drag can't take a row past them. `ref.glide` moves a row to a new slot the
+ * same way a drop does, for a change made by something other than a finger
+ * (a ticked task sinking to the bottom).
  */
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useImperativeHandle, useRef, type ReactNode, type Ref } from 'react';
 import { View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -37,15 +42,25 @@ type Shared = {
 
 export type Handle = (children: ReactNode) => ReactNode;
 
+export type SortableRef = {
+  /** Slide the row at `from` into slot `to`, then call `done` (which should re-order the list). */
+  glide: (from: number, to: number, done: () => void) => void;
+};
+
 export function Sortable<T extends { id: string }>({
   items,
   onReorder,
   renderItem,
+  fixedFrom = items.length,
+  ref,
 }: {
   items: T[];
   onReorder: (ids: string[]) => void;
-  /** `handle` wraps whatever the row draws as its grabber. */
-  renderItem: (item: T, index: number, handle: Handle) => ReactNode;
+  /** `handle` wraps whatever the row draws as its grabber; undefined for a fixed row. */
+  renderItem: (item: T, index: number, handle: Handle | undefined) => ReactNode;
+  /** Rows at this index and after can't be dragged, or dragged past. */
+  fixedFrom?: number;
+  ref?: Ref<SortableRef>;
 }) {
   const active = useSharedValue(-1);
   const hover = useSharedValue(-1);
@@ -72,12 +87,33 @@ export function Sortable<T extends { id: string }>({
     onReorder(move(items.map((i) => i.id), from, to));
   };
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      glide(from, to, done) {
+        if (from === to || from < 0 || active.value >= 0) {
+          done();
+          return;
+        }
+        active.value = from;
+        hover.value = to;
+        dragY.value = 0;
+        dragY.value = withTiming(offsetTo(from, to, heights.value), { duration: 280 }, (finished) => {
+          if (finished) runOnJS(done)();
+        });
+      },
+    }),
+    [active, hover, dragY, heights],
+  );
+
   return (
     <View>
       {items.map((item, index) => (
         <Row
           key={item.id}
           index={index}
+          last={fixedFrom - 1}
+          fixed={index >= fixedFrom}
           shared={shared}
           onHeight={(h) => {
             measured.current[index] = h;
@@ -85,7 +121,7 @@ export function Sortable<T extends { id: string }>({
           }}
           onLift={() => haptic('select')}
           onDrop={commit}>
-          {(handle) => renderItem(item, index, handle)}
+          {(handle) => renderItem(item, index, index >= fixedFrom ? undefined : handle)}
         </Row>
       ))}
     </View>
@@ -94,6 +130,8 @@ export function Sortable<T extends { id: string }>({
 
 function Row({
   index,
+  last,
+  fixed,
   shared,
   onHeight,
   onLift,
@@ -101,6 +139,9 @@ function Row({
   children,
 }: {
   index: number;
+  /** The lowest slot a drag may end in. */
+  last: number;
+  fixed: boolean;
   shared: Shared;
   onHeight: (h: number) => void;
   onLift: () => void;
@@ -110,6 +151,7 @@ function Row({
   const { active, hover, dragY, heights } = shared;
 
   const pan = Gesture.Pan()
+    .enabled(!fixed)
     .activateAfterLongPress(150)
     .onStart(() => {
       active.value = index;
@@ -119,7 +161,7 @@ function Row({
     })
     .onUpdate((e) => {
       dragY.value = e.translationY;
-      hover.value = slotFor(index, e.translationY, heights.value);
+      hover.value = Math.min(slotFor(index, e.translationY, heights.value), last);
     })
     .onEnd(() => {
       const to = hover.value;

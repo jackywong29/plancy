@@ -4,11 +4,10 @@
  * Swipe left for Edit and Delete (see SwipeRow, which also hands both to
  * VoiceOver as actions).
  */
-import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { Task } from '@/data/types';
-import { splitTime } from '@/lib/format';
+import { addDays, formatDayShort, splitTime } from '@/lib/format';
 import { Type, useTheme } from '@/theme/theme';
 
 import type { Handle } from './sortable';
@@ -31,7 +30,7 @@ export function TaskRow({
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  /** Anytime tasks: wraps the grabber that takes the time column's place. */
+  /** Open anytime tasks: wraps the grabber that takes the time column's place. A finished one has none. */
   handle?: Handle;
   /** Anytime tasks: Move up / Move down, for VoiceOver. */
   moveActions?: RowAction[];
@@ -41,6 +40,13 @@ export function TaskRow({
   const { time, suffix } = anytime ? { time: '', suffix: '' } : splitTime(task.time, hour12);
   const repeatLabel =
     task.repeat === 'daily' ? 'Every day' : task.repeat === 'weekly' ? 'Every week' : task.repeat === 'monthly' ? 'Every month' : '';
+  // Carried over from an earlier day: say from when, so it doesn't look new.
+  const since = task.carriedFrom[0];
+  const carriedLabel = !since
+    ? ''
+    : since === addDays(task.date, -1)
+      ? 'From yesterday'
+      : `From ${formatDayShort(since).replace(/,/g, '')}`;
 
   return (
     <SwipeRow
@@ -51,7 +57,7 @@ export function TaskRow({
         { name: 'delete', label: 'Delete', icon: 'trash', background: theme.bad, ink: '#FFFFFF', onPress: onDelete },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${task.title}, ${anytime ? 'anytime' : `${time} ${suffix}`}${repeatLabel ? `, ${repeatLabel.toLowerCase()}` : ''}${task.notes ? `, notes: ${task.notes}` : ''}`}
+      accessibilityLabel={`${task.title}, ${anytime ? 'anytime' : `${time} ${suffix}`}${repeatLabel ? `, ${repeatLabel.toLowerCase()}` : ''}${carriedLabel ? `, ${carriedLabel.toLowerCase()}` : ''}${task.notes ? `, notes: ${task.notes}` : ''}`}
       accessibilityHint="Opens the task"
       style={[
         styles.row,
@@ -60,7 +66,7 @@ export function TaskRow({
       ]}>
       {anytime ? (
         <View style={styles.time}>
-          {(handle ?? ((c: ReactNode) => c))(
+          {handle?.(
             <View style={styles.grip} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               <Icon name="line.3.horizontal" size={18} color={theme.ink3} />
             </View>,
@@ -92,6 +98,12 @@ export function TaskRow({
           <View style={styles.meta}>
             <Icon name="repeat" size={12} color={theme.ink2} />
             <Text style={{ color: theme.ink2, fontSize: Type.footnote }}>{repeatLabel}</Text>
+          </View>
+        ) : null}
+        {carriedLabel && !task.done ? (
+          <View style={styles.meta}>
+            <Icon name="arrow.turn.down.right" size={12} color={theme.ink2} />
+            <Text style={{ color: theme.ink2, fontSize: Type.footnote }}>{carriedLabel}</Text>
           </View>
         ) : null}
       </View>

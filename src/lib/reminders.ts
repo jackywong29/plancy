@@ -5,16 +5,24 @@
  * calendar feed, in-tab banners) with one: iOS holds the alarms, so they fire
  * with the app closed and with no internet. iOS caps pending notifications at
  * 64 per app, so only the coming week is scheduled and topped up on each
- * change. The morning nudge (see nudges.ts) shares the budget.
+ * change. The nudges (see nudges.ts) share the budget: plancy keeps 60, each
+ * nudge that's switched on reserves a week of its own, and reminders get the
+ * rest — 60 with neither nudge, 53 with one, 46 with both.
  */
 import * as Notifications from 'expo-notifications';
 
 import type { Settings, Task } from '@/data/types';
 import { addDays, splitTime, todayIso } from '@/lib/format';
-import { composeNudge, ensureNudgeActions, NUDGE_DAYS, nudgeContent, planNudges } from '@/lib/nudges';
+import { composeEvening, composeNudge, ensureNudgeActions, NUDGE_DAYS, nudgeContent, planEvenings, planNudges } from '@/lib/nudges';
 
 const HORIZON_DAYS = 7;
-const MAX_PENDING = 60 - NUDGE_DAYS;
+/** Four under iOS's 64, so a preview always has room. */
+const PENDING = 60;
+
+/** How many task reminders fit beside the nudges that are on. */
+export function reminderBudget(settings: Pick<Settings, 'nudge' | 'evening'>): number {
+  return PENDING - (settings.nudge ? NUDGE_DAYS : 0) - (settings.evening ? NUDGE_DAYS : 0);
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -78,7 +86,7 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
   for (const n of scheduled) {
     if (n.identifier !== PREVIEW_ID) await Notifications.cancelScheduledNotificationAsync(n.identifier);
   }
-  if (!settings.remind && !settings.nudge) return;
+  if (!settings.remind && !settings.nudge && !settings.evening) return;
   // Reads the permission, never asks for it. A new install therefore reaches
   // the first screen without a system prompt; Settings shows the person that
   // reminders need permission, and onboarding is where plancy asks.
@@ -91,6 +99,15 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
       await Notifications.scheduleNotificationAsync({
         identifier: n.id,
         content: nudgeContent(n, n.id.slice('nudge-'.length)),
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at },
+      });
+    }
+  }
+  if (settings.evening) {
+    for (const n of planEvenings(tasks, settings, today)) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: n.id,
+        content: nudgeContent(n, n.id.slice('evening-'.length), false),
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at },
       });
     }
@@ -112,7 +129,7 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
 /**
  * The reminders to schedule: the coming week's open, timed tasks, soonest
  * first, each `leadMinutes` before its time, never in the past, and never
- * more than the budget left after the nudge. Empty when reminders are off.
+ * more than the budget left after the nudges. Empty when reminders are off.
  */
 export function planReminders(tasks: Task[], settings: Settings, today: string): { task: Task; at: number }[] {
   if (!settings.remind) return [];
@@ -126,7 +143,7 @@ export function planReminders(tasks: Task[], settings: Settings, today: string):
       .map((t) => ({ task: t, at: whenEpoch(t) - lead }))
       .filter((x) => x.at > now)
       .sort((a, b) => a.at - b.at)
-      .slice(0, MAX_PENDING)
+      .slice(0, reminderBudget(settings))
   );
 }
 
@@ -137,20 +154,28 @@ function whenEpoch(task: Task): number {
 }
 
 /**
- * Sends today's morning nudge a few seconds from now, so it can be seen and
- * heard without waiting for tomorrow. Leave plancy (or lock the phone) to see
- * it as it will really arrive.
+ * Sends today's morning nudge, or tonight's check-in, a few seconds from now,
+ * so it can be seen and heard without waiting. Leave plancy (or lock the
+ * phone) to see it as it will really arrive. 'empty' means tonight has
+ * nothing open, so no check-in would come.
  */
-export async function previewNudge(tasks: Task[], settings: Settings, inSeconds = 5): Promise<boolean> {
-  // A tap on "Send a preview" is an explicit request, so asking here is fair.
-  if (!(await askPermission())) return false;
-  await ensureNudgeActions();
+export async function previewNudge(
+  tasks: Task[],
+  settings: Settings,
+  inSeconds = 5,
+  which: 'morning' | 'evening' = 'morning',
+): Promise<'sent' | 'blocked' | 'empty'> {
   const today = todayIso();
+  const words = which === 'morning' ? composeNudge(tasks, settings, today) : composeEvening(tasks, settings, today);
+  if (!words) return 'empty';
+  // A tap on "Send a preview" is an explicit request, so asking here is fair.
+  if (!(await askPermission())) return 'blocked';
+  await ensureNudgeActions();
   await Notifications.cancelScheduledNotificationAsync(PREVIEW_ID).catch(() => undefined);
   await Notifications.scheduleNotificationAsync({
     identifier: PREVIEW_ID,
-    content: nudgeContent(composeNudge(tasks, settings, today), today),
+    content: nudgeContent(words, today, which === 'morning'),
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: inSeconds },
   });
-  return true;
+  return 'sent';
 }

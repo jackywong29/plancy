@@ -10,10 +10,11 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { askScope } from '@/components/scope-sheet';
 import { Card, Chip, Row, SectionHead, Segmented } from '@/components/ui';
-import { useStore } from '@/data/store';
+import { useStore, type Scope } from '@/data/store';
 import type { Repeat } from '@/data/types';
-import { addDays, formatDayShort, fromIso, isoDate, todayIso } from '@/lib/format';
+import { addDays, formatDayShort, fromIso, isoDate } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
@@ -28,10 +29,9 @@ export default function TaskSheet() {
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const router = useRouter();
   const theme = useTheme();
-  const { tasks, settings, addTask, editTask, moveTask } = useStore();
+  const { tasks, today, settings, addTask, editTask } = useStore();
 
   const existing = params.id ? tasks.find((t) => t.id === params.id) : undefined;
-  const today = todayIso();
 
   const [title, setTitle] = useState(existing?.title ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
@@ -60,14 +60,22 @@ export default function TaskSheet() {
   function save() {
     if (!canSave) return;
     const time = timed ? `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}` : '';
-    if (existing) {
-      editTask(existing.id, { title: title.trim(), notes: notes.trim(), time, remind, repeat });
-      if (date !== existing.date) moveTask(existing.id, date);
-    } else {
-      addTask({ date, time, title: title.trim(), notes: notes.trim(), remind, repeat });
+    const fields = { date, time, title: title.trim(), notes: notes.trim(), remind, repeat };
+    if (existing && (Object.keys(fields) as (keyof typeof fields)[]).every((k) => fields[k] === existing[k])) {
+      router.back();
+      return;
     }
-    haptic('saved');
-    router.back();
+    const done = (scope?: Scope) => {
+      if (existing) editTask(existing.id, fields, scope);
+      else addTask(fields);
+      haptic('saved');
+      router.back();
+    };
+    // A copy of a repeating task asks how far the edit reaches, as Calendar
+    // does. A new repeat rule always starts from this copy, so that needn't ask.
+    const asks = existing && existing.repeat !== '' && repeat === existing.repeat;
+    if (asks) askScope('save', { scheme: theme.scheme, tint: theme.accentText }, done);
+    else done();
   }
 
   const dayChips: { label: string; value: string }[] = [

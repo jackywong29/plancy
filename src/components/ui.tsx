@@ -262,12 +262,14 @@ export function Chip({
 }
 
 const FAB = 56;
+/** Air between the add button and the tab bar's glass. Jacky's pick of four, 6 Oct. */
+const FAB_LIFT = 14;
 
 /**
  * How far a screen's content must clear the bottom when a Fab floats over it,
  * so the last row can always be scrolled out from under the button.
  */
-export const FAB_CLEARANCE = Space.tabBarHeight + Space.gap + FAB + Space.gap;
+export const FAB_CLEARANCE = Space.tabBarHeight + FAB_LIFT + FAB + Space.gap;
 
 /**
  * The app's one add button, centred above the tab bar where either thumb
@@ -408,7 +410,7 @@ const styles = StyleSheet.create({
   segmentStacked: { flexDirection: 'column' },
   segmentItem: { flex: 1, paddingVertical: 9, paddingHorizontal: 8, borderRadius: 9, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   segmentItemStacked: { flex: 0, alignItems: 'flex-start', paddingHorizontal: 12 },
-  fabLane: { position: 'absolute', left: 0, right: 0, bottom: Space.tabBarHeight + Space.gap, alignItems: 'center' },
+  fabLane: { position: 'absolute', left: 0, right: 0, bottom: Space.tabBarHeight + FAB_LIFT, alignItems: 'center' },
   fab: {
     width: FAB,
     height: FAB,

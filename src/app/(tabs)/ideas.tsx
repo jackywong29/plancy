@@ -9,6 +9,7 @@ import { useStore } from '@/data/store';
 import type { Idea } from '@/data/types';
 import { useAddAction } from '@/lib/add-action';
 import { haptic } from '@/lib/haptics';
+import { useSettle } from '@/lib/settle';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 export default function IdeasScreen() {
@@ -21,14 +22,20 @@ export default function IdeasScreen() {
   const toast = useToast();
   const [draft, setDraft] = useState('');
   const [filter, setFilter] = useState('all');
+  // A ticked idea waits a moment where it was, so the tick is seen landing,
+  // then glides down to the done ones (the layout animation below).
+  const { hold, placedDone } = useSettle();
 
   const tags = [...new Set(ideas.map((i) => i.tag).filter(Boolean))].sort();
   const starred = ideas.filter((i) => i.starred).length;
   const done = ideas.filter((i) => i.done).length;
   const visible = ideas
-    .filter((i) => (filter === 'all' ? true : filter === 'starred' ? i.starred : filter === 'done' ? i.done : i.tag === filter))
+    .filter((i) => (filter === 'all' ? true : filter === 'starred' ? i.starred : filter === 'done' ? placedDone(i) : i.tag === filter))
     // Open ideas first, done ones sink to the bottom; within each, starred on top, then newest.
-    .sort((a, b) => Number(a.done) - Number(b.done) || Number(b.starred) - Number(a.starred) || b.createdAt - a.createdAt);
+    .sort(
+      (a, b) =>
+        Number(placedDone(a)) - Number(placedDone(b)) || Number(b.starred) - Number(a.starred) || b.createdAt - a.createdAt,
+    );
 
   function commit() {
     if (!draft.trim()) return;
@@ -41,6 +48,7 @@ export default function IdeasScreen() {
   function toggleIdea(idea: Idea) {
     haptic(idea.done ? 'untick' : 'tick');
     toggleIdeaDone(idea.id);
+    hold(idea.id, idea.done);
   }
 
   function star(idea: Idea) {
@@ -114,6 +122,15 @@ export default function IdeasScreen() {
                     { name: 'toggle', label: idea.done ? 'Mark not done' : 'Mark done', onPress: () => toggleIdea(idea) },
                     { name: 'star', label: idea.starred ? 'Unstar' : 'Star', onPress: () => star(idea) },
                   ]}
+                  // Swipe right to tick it off (or back on), as Mail marks a message read.
+                  leading={{
+                    name: 'toggle',
+                    label: idea.done ? 'Not done' : 'Done',
+                    icon: idea.done ? 'arrow.uturn.backward' : 'checkmark',
+                    background: idea.done ? theme.fill : theme.accent,
+                    ink: idea.done ? theme.ink : theme.onAccent,
+                    onPress: () => toggleIdea(idea),
+                  }}
                   actions={[
                     {
                       name: 'delete',
@@ -135,7 +152,7 @@ export default function IdeasScreen() {
                       }}>
                       {idea.text}
                     </Text>
-                    <Tick checked={idea.done} onPress={() => toggleIdea(idea)} label={`${idea.text} done`} size={24} />
+                    <Tick checked={idea.done} onPress={() => toggleIdea(idea)} label={`${idea.text} done`} />
                   </View>
                   <View style={styles.ideaFoot}>
                     {idea.tag ? (
@@ -171,6 +188,11 @@ export default function IdeasScreen() {
                 </SwipeRow>
               </Animated.View>
             ))}
+            <Animated.View layout={LinearTransition.duration(280)}>
+              <Text style={{ color: theme.ink3, fontSize: Type.footnote, textAlign: 'center', marginTop: 2 }}>
+                Swipe an idea right to mark it done, left to delete it.
+              </Text>
+            </Animated.View>
           </View>
         </LayoutAnimationConfig>
       )}

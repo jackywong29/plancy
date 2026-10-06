@@ -1,5 +1,5 @@
 import { task } from '../../test/make';
-import { dayOrder, move, nextPosition, offsetTo, slotFor } from './order';
+import { anytimeOrder, dayOrder, move, nextPosition, offsetTo, slotFor } from './order';
 
 const titles = (list: { title: string }[]) => list.map((t) => t.title);
 
@@ -23,6 +23,35 @@ describe('dayOrder', () => {
       task({ title: 'a', time: '', position: 0, createdAt: 1 }),
     ];
     expect(titles(dayOrder(list))).toEqual(['earlier', 'later', 'a', 'b']);
+  });
+
+  it('sinks finished anytime tasks below the open ones, each group by position', () => {
+    const list = [
+      task({ title: 'a', time: '', position: 0, done: true }),
+      task({ title: 'b', time: '', position: 1 }),
+      task({ title: 'c', time: '', position: 2, done: true }),
+      task({ title: 'd', time: '', position: 3 }),
+    ];
+    expect(titles(dayOrder(list))).toEqual(['b', 'd', 'a', 'c']);
+  });
+
+  it('leaves finished timed tasks on the clock', () => {
+    const list = [task({ title: '9 am', time: '09:00', done: true }), task({ title: '10 am', time: '10:00' })];
+    expect(titles(dayOrder(list))).toEqual(['9 am', '10 am']);
+  });
+
+  it('puts an unticked task back where it was', () => {
+    const list = [
+      task({ title: 'a', time: '', position: 0 }),
+      task({ title: 'b', time: '', position: 1, done: false }),
+      task({ title: 'c', time: '', position: 2 }),
+    ];
+    expect(titles(dayOrder(list))).toEqual(['a', 'b', 'c']);
+  });
+
+  it('can hold a just-ticked row in its old place', () => {
+    const list = [task({ id: 'a', title: 'a', time: '', position: 0, done: true }), task({ title: 'b', time: '', position: 1 })];
+    expect(titles(anytimeOrder(list, (t) => (t.id === 'a' ? false : t.done)))).toEqual(['a', 'b']);
   });
 
   it('does not change the list it was given', () => {

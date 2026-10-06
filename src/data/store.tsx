@@ -6,36 +6,45 @@
  * Same shape as the web planner's store, which keeps the iCloud sync work
  * ahead of us small.
  */
-import { createContext, use, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
 import { addDays, settingsDefaults, todayIso } from '@/lib/format';
 
+import { carryOver } from './carry';
 import {
   eraseAll,
   forgetTombstone,
   loadAll,
+  loadGone,
   migrate,
   readSettings,
   removeRecord,
   saveEntry,
   saveIdea,
   saveMoney,
+  saveSeries,
   saveTask,
   uid,
   writeSetting,
 } from './db';
 import { isAnytime, nextPosition } from './order';
-import { missingBills, upcomingRepeats } from './repeats';
+import { endSeries, missingBills, missingSeries, seriesFrom, splitSeries, upcomingRepeats, type TaskFields } from './repeats';
 import { seedIfEmpty, seedSample } from './seed';
-import type { Idea, JournalEntry, Mood, MoneyEntry, Repeat, Settings, Task } from './types';
+import type { Idea, JournalEntry, Mood, MoneyEntry, Repeat, Series, Settings, Task } from './types';
 
 migrate();
 // Sample data in development only; a real install starts empty.
 if (__DEV__) seedIfEmpty();
 
-type Data = { tasks: Task[]; journal: JournalEntry[]; ideas: Idea[]; money: MoneyEntry[] };
+type Data = { tasks: Task[]; series: Series[]; journal: JournalEntry[]; ideas: Idea[]; money: MoneyEntry[] };
 
-type Store = Data & {
+/** Which copies of a repeating task an edit or delete reaches. */
+export type Scope = 'this' | 'future';
+
+type Store = Omit<Data, 'series'> & {
+  /** Today's date, kept current: it turns over at midnight and when plancy comes back to the front. */
+  today: string;
   settings: Settings;
   setSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   addTask: (input: { date: string; time: string; title: string; notes: string; remind: boolean; repeat: Repeat }) => void;
@@ -46,12 +55,18 @@ type Store = Data & {
   toggleTask: (id: string) => void;
   /** Apply done states decided elsewhere (ticks made on the widget). */
   setTasksDone: (changes: { id: string; done: boolean }[]) => void;
-  moveTask: (id: string, date: string) => void;
-  editTask: (id: string, patch: Partial<Pick<Task, 'title' | 'notes' | 'time' | 'remind' | 'repeat'>>) => void;
+  /**
+   * Change a task. For a copy of a repeating task, 'future' changes it and
+   * every later copy; changing the repeat rule itself always does.
+   */
+  editTask: (id: string, patch: Partial<TaskFields>, scope?: Scope) => void;
   /** Save a new order for a day's anytime tasks: `ids` top to bottom. */
   reorderTasks: (ids: string[]) => void;
-  deleteTask: (id: string) => void;
-  restoreTask: (task: Task) => void;
+  /**
+   * Delete a task — or, with 'future', a repeating task's copy and every later
+   * one, ending the series. Returns what Undo calls.
+   */
+  deleteTask: (id: string, scope?: Scope) => () => void;
   writeJournal: (date: string, patch: { body?: string; mood?: Mood }) => void;
   addIdea: (raw: string) => void;
   toggleStar: (id: string) => void;
@@ -69,25 +84,117 @@ type Store = Data & {
 
 const StoreContext = createContext<Store | null>(null);
 
-/** Everything in SQLite, with the coming week of repeating tasks filled in. */
-function loadFilled(): Data {
-  const loaded = loadAll();
-  // Keep the coming week filled in, so tomorrow's run already exists tonight.
-  const today = todayIso();
-  const created = upcomingRepeats(loaded.tasks, today, addDays(today, 7)).map((t) => ({ id: uid(), ...t }));
+const yesterday = () => addDays(todayIso(), -1);
+
+/** Settings as stored. Carry-over starts from yesterday the first time it runs. */
+function loadSettings(): Settings {
+  const settings = readSettings(settingsDefaults());
+  if (settings.carryOver && !settings.carrySince) {
+    settings.carrySince = yesterday();
+    writeSetting('carrySince', settings.carrySince);
+  }
+  return settings;
+}
+
+/** The coming week of repeating tasks, filled in, so tomorrow's run already exists tonight. */
+function fill(d: Data, gone: ReadonlySet<string>, today = todayIso()): Data {
+  const created = upcomingRepeats(d.tasks, d.series, gone, today, addDays(today, 7));
+  if (created.length === 0) return d;
   for (const t of created) saveTask(t);
-  return { ...loaded, tasks: [...loaded.tasks, ...created] };
+  return { ...d, tasks: [...d.tasks, ...created] };
+}
+
+/** A new day: unfinished tasks move up to it (if carry-over is on), and the week is filled. */
+function roll(d: Data, today: string, settings: Settings, gone: ReadonlySet<string>): Data {
+  if (!settings.carryOver) return fill(d, gone, today);
+  const moved = carryOver(d.tasks, today, settings.carrySince);
+  if (moved.length === 0) return fill(d, gone, today);
+  for (const t of moved) saveTask(t);
+  const byId = new Map(moved.map((t) => [t.id, t]));
+  return fill({ ...d, tasks: d.tasks.map((t) => byId.get(t.id) ?? t) }, gone, today);
+}
+
+/** Everything in SQLite, rolled up to today. */
+function loadFilled(settings: Settings, gone: ReadonlySet<string>): Data {
+  const loaded = loadAll();
+  // Repeating tasks from before series existed get one now.
+  const found = missingSeries(loaded.tasks, loaded.series);
+  for (const s of found) saveSeries(s);
+  return roll({ ...loaded, series: [...loaded.series, ...found] }, todayIso(), settings, gone);
+}
+
+/**
+ * Where a task lands when an edit brings it into a day's anytime list (it
+ * lost its time, or changed day): at the end, not the top. Undefined when it
+ * stays where it is.
+ */
+function placed(tasks: Task[], before: Task, after: Task): number | undefined {
+  return isAnytime(after) && (!isAnytime(before) || after.date !== before.date)
+    ? nextPosition(tasks.filter((o) => o.id !== before.id), after.date)
+    : undefined;
+}
+
+/** Records `change` asks to save and remove, swapped into `d`. */
+function swap(d: Data, change: { tasks?: Task[]; series?: Series[]; remove?: string[] }): Data {
+  const out = new Set([...(change.remove ?? []), ...(change.tasks ?? []).map((t) => t.id)]);
+  const replaced = new Set((change.series ?? []).map((s) => s.id));
+  return {
+    ...d,
+    tasks: [...d.tasks.filter((t) => !out.has(t.id)), ...(change.tasks ?? [])],
+    series: [...d.series.filter((s) => !replaced.has(s.id)), ...(change.series ?? [])],
+  };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<Data>(loadFilled);
-  const [settings, setSettings] = useState<Settings>(() => readSettings(settingsDefaults()));
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  // Ids of deleted tasks, so a deleted copy of a repeating task stays deleted.
+  const [gone] = useState(() => ({ current: loadGone('tasks') }));
+  const [data, setData] = useState<Data>(() => loadFilled(settings, gone.current));
+  const [today, setToday] = useState(todayIso);
+  // For the few changes that must answer straight away (Undo needs to know
+  // what a delete took), the data as last drawn.
+  const latest = useRef({ data, settings });
+  latest.current = { data, settings };
 
   const stamp = () => Date.now();
 
+  // Midnight, or back from the background on a later day: a new today.
+  useEffect(() => {
+    const check = () => setToday(todayIso());
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') check();
+    });
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      const now = new Date();
+      const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+      timer = setTimeout(() => {
+        check();
+        arm();
+      }, next.getTime() - now.getTime());
+    };
+    arm();
+    return () => {
+      sub.remove();
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // A new day, or carry-over just switched on: move what's left, fill the week.
+  useEffect(() => {
+    setData((d) => roll(d, today, latest.current.settings, gone.current));
+  }, [today, settings.carryOver, settings.carrySince]);
+
   const setSetting = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     writeSetting(key, value);
-    setSettings((s) => ({ ...s, [key]: value }));
+    // Switched on, carry-over moves yesterday's leftovers, not every
+    // unfinished task from before it was off.
+    const since: Partial<Settings> = {};
+    if (key === 'carryOver' && value === true) {
+      since.carrySince = yesterday();
+      writeSetting('carrySince', since.carrySince);
+    }
+    setSettings((s) => ({ ...s, [key]: value, ...since }));
   }, []);
 
   const addTask: Store['addTask'] = useCallback((input) => {
@@ -95,19 +202,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData((d) => {
       // A new anytime task goes to the bottom of that day's anytime list.
       const position = isAnytime(input) ? nextPosition(d.tasks, input.date) : 0;
-      const task: Task = { id, seriesId: id, ...input, position, done: false, createdAt: stamp(), syncedAt: stamp() };
+      const task: Task = { id, seriesId: id, ...input, position, done: false, carriedFrom: [], createdAt: stamp(), syncedAt: stamp() };
       saveTask(task);
-      const tasks = [...d.tasks, task];
-      const today = todayIso();
-      const created = upcomingRepeats(tasks, today, addDays(today, 7)).map((t) => ({ id: uid(), ...t }));
-      for (const t of created) saveTask(t);
-      return { ...d, tasks: [...tasks, ...created] };
+      const series = task.repeat ? [seriesFrom(task)] : [];
+      for (const s of series) saveSeries(s);
+      return fill(swap(d, { tasks: [task], series }), gone.current);
     });
   }, []);
 
   const ensureRepeats = useCallback((through: string) => {
     setData((d) => {
-      const created = upcomingRepeats(d.tasks, todayIso(), through).map((t) => ({ id: uid(), ...t }));
+      const created = upcomingRepeats(d.tasks, d.series, gone.current, todayIso(), through);
       if (created.length === 0) return d;
       for (const t of created) saveTask(t);
       return { ...d, tasks: [...d.tasks, ...created] };
@@ -129,17 +234,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tasks: d.tasks.map((t) => {
         if (t.id !== id) return t;
         const next = { ...t, ...patch, syncedAt: stamp() };
-        // Arriving in a day's anytime list — by losing its time or changing
-        // day — a task joins the end of it rather than jumping to the top.
-        const joined = isAnytime(next) && (!isAnytime(t) || next.date !== t.date);
-        if (joined && patch.position === undefined) {
-          next.position = nextPosition(d.tasks.filter((o) => o.id !== id), next.date);
-        }
+        const position = patch.position === undefined ? placed(d.tasks, t, next) : undefined;
+        if (position !== undefined) next.position = position;
         saveTask(next);
         return next;
       }),
     }));
   }, []);
+
+  const editTask: Store['editTask'] = useCallback(
+    (id, patch, scope = 'this') => {
+      const { data: d } = latest.current;
+      const task = d.tasks.find((t) => t.id === id);
+      if (!task) return;
+      const ruleChanged = patch.repeat !== undefined && patch.repeat !== task.repeat;
+      if (!ruleChanged && (scope === 'this' || !task.repeat)) {
+        patchTask(id, patch);
+        return;
+      }
+      const position = placed(d.tasks, task, { ...task, ...patch });
+      const change = splitSeries(
+        d.series.find((s) => s.id === task.seriesId),
+        d.tasks,
+        task,
+        position === undefined ? patch : { ...patch, position },
+        uid,
+      );
+      for (const s of change.series) saveSeries(s);
+      for (const t of change.remove) {
+        removeRecord('tasks', t.id);
+        gone.current.add(t.id);
+      }
+      saveTask(change.task);
+      setData((prev) =>
+        fill(swap(prev, { tasks: [change.task], series: change.series, remove: change.remove.map((t) => t.id) }), gone.current),
+      );
+    },
+    [patchTask],
+  );
 
   const toggleTask = useCallback(
     (id: string) => setData((d) => {
@@ -180,17 +312,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const deleteTask = useCallback((id: string) => {
-    removeRecord('tasks', id);
-    setData((d) => ({ ...d, tasks: d.tasks.filter((t) => t.id !== id) }));
+  /** Undo for a delete: the tasks come back, tombstones forgotten, and the series as it was. */
+  const restore = useCallback((tasks: Task[], series: Series[]) => {
+    const now = stamp();
+    const back = tasks.map((t) => ({ ...t, syncedAt: now }));
+    const was = series.map((s) => ({ ...s, syncedAt: now }));
+    for (const t of back) {
+      forgetTombstone(t.id);
+      gone.current.delete(t.id);
+      saveTask(t);
+    }
+    for (const s of was) saveSeries(s);
+    setData((d) => swap(d, { tasks: back, series: was }));
   }, []);
 
-  const restoreTask = useCallback((task: Task) => {
-    forgetTombstone(task.id);
-    const next = { ...task, syncedAt: stamp() };
-    saveTask(next);
-    setData((d) => ({ ...d, tasks: [...d.tasks.filter((t) => t.id !== task.id), next] }));
-  }, []);
+  const deleteTask: Store['deleteTask'] = useCallback(
+    (id, scope = 'this') => {
+      const { data: d } = latest.current;
+      const task = d.tasks.find((t) => t.id === id);
+      if (!task) return () => undefined;
+      const s = scope === 'future' ? d.series.find((x) => x.id === task.seriesId) : undefined;
+      const { series, remove } = s ? endSeries(s, d.tasks, task) : { series: undefined, remove: [task] };
+      if (series) saveSeries(series);
+      for (const t of remove) {
+        removeRecord('tasks', t.id);
+        gone.current.add(t.id);
+      }
+      setData((prev) => swap(prev, { series: series ? [series] : [], remove: remove.map((t) => t.id) }));
+      return () => restore(remove, s ? [s] : []);
+    },
+    [restore],
+  );
 
   const writeJournal: Store['writeJournal'] = useCallback((date, patch) => {
     setData((d) => {
@@ -309,12 +461,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const resetData = useCallback((withSample: boolean) => {
     eraseAll();
     if (withSample) seedSample();
-    setData(loadFilled());
+    gone.current = loadGone('tasks');
+    setData(loadFilled(latest.current.settings, gone.current));
   }, []);
 
   const value = useMemo<Store>(
     () => ({
-      ...data,
+      tasks: data.tasks,
+      journal: data.journal,
+      ideas: data.ideas,
+      money: data.money,
+      today,
       settings,
       setSetting,
       addTask,
@@ -322,11 +479,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ensureBills,
       toggleTask,
       setTasksDone,
-      moveTask: (id, date) => patchTask(id, { date }),
-      editTask: (id, patch) => patchTask(id, patch),
+      editTask,
       reorderTasks,
       deleteTask,
-      restoreTask,
       writeJournal,
       addIdea,
       toggleStar,
@@ -340,7 +495,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       restoreMoney,
       resetData,
     }),
-    [data, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, setTasksDone, patchTask, reorderTasks, deleteTask, restoreTask, writeJournal, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea, toggleBillPaid, addMoney, editMoney, deleteMoney, restoreMoney, resetData],
+    [data, today, settings, setSetting, addTask, ensureRepeats, ensureBills, toggleTask, setTasksDone, editTask, reorderTasks, deleteTask, writeJournal, addIdea, toggleStar, toggleIdeaDone, deleteIdea, restoreIdea, toggleBillPaid, addMoney, editMoney, deleteMoney, restoreMoney, resetData],
   );
 
   return <StoreContext value={value}>{children}</StoreContext>;

@@ -33,7 +33,7 @@ General → VPN & Device Management → trust the Apple ID again.
 - **Launch plan:** https://claude.ai/artifact/FtoMDwzjv6KxCXDfqWZA9P
 - **Design draft (clickable HTML):** https://claude.ai/artifact/AtdezYxSubQXP6vgejuYTi
 
-## Start here — state on 24 Sep
+## Start here — state on 6 Oct
 
 - **Every launch blocker in the code is done**: correctness fixes, onboarding
   with permission priming, finance editing, accessibility at 310%, and a
@@ -44,20 +44,21 @@ General → VPN & Device Management → trust the Apple ID again.
   changes, 24 Sep" below.
 - **Build 7 (6 Oct)**, installed from the Mac mini: the task sheet's Remind
   me switch as a real per-task setting, and the celebration fix (below).
-- **Tests exist (24 Sep): 174 of them, `npm test`, ~1.5 s.** Everything
-  `docs/TEST_SPEC.md` §3 asked for, plus the drag maths and the widget
-  rendered offline in every family. Keep `npm test` and `npx tsc --noEmit`
-  green. See "Tests (24 Sep)" below.
-- **The tests found a real gap in repeating tasks.** Decided 27 Sep: plancy
-  will ask "This task only / This and future tasks" on editing or deleting a
-  repeating task, like Apple's Calendar. Item 1 of "Next, in this order".
+- **6 Oct round, not yet on the phone (will be build 8)**: finished anytime
+  tasks sink, unfinished tasks carry over to the next day, three nudge
+  voices plus an evening check-in, ideas swipe right to complete, and
+  repeating tasks ask "This task only / This and future tasks". Details in
+  "Round of changes, 6 Oct" below.
+- **Tests: 214 of them, `npm test`, ~1.5 s.** Everything `docs/TEST_SPEC.md`
+  §3 asked for, plus the drag maths, the widget rendered offline in every
+  family, and the 6 Oct round. Keep `npm test` and `npx tsc --noEmit` green.
+  See "Tests (24 Sep)" below. No `it.failing` left: BUG-1 and BUG-2 are fixed.
 - **Apple enrolment is on hold by Jacky's choice.** The D-U-N-S (473263782)
   is issued; resume "Enrolment, in order" below only when Jacky says so.
 - **Waiting on Jacky's hands**, because the CLI can't touch a screen: drag
   anytime tasks, try the add button on each tab, add a Lock Screen widget,
   and do one VoiceOver pass.
-- **Next piece of work**: repeat series, together with the iCloud id
-  groundwork (see "Next, in this order").
+- **Next piece of work**: App Store material (see "Next, in this order").
 
 ## Decisions already made (don't re-open these)
 
@@ -220,7 +221,10 @@ src/data/types.ts          records; every one carries syncedAt, ready for iCloud
 src/data/db.ts             SQLite schema, reads/writes, tombstones, migrations
 src/data/store.tsx         in-memory store writing through to SQLite (opens the db on import)
 src/data/select.ts         selectors: streak, countsByDate, tasksForDay, monthTotals (pure, tested)
-src/data/repeats.ts        repeat series for tasks; monthly bill roll-forward
+src/data/repeats.ts        repeating tasks as Series (copyId, this-and-future); monthly bill roll-forward
+src/data/carry.ts          carry-over of unfinished tasks; asOf() shows a later day as it will be
+src/lib/settle.ts          useSettle: a ticked row waits a moment before it moves
+src/components/scope-sheet.ts  "This task only / This and future tasks" action sheet
 src/data/seed.ts           sample rows, __DEV__ only
 src/lib/format.ts          local-time dates, 12/24h, money in minor units, locale defaults
 src/lib/reminders.ts       schedules iOS notifications for the coming week
@@ -339,6 +343,87 @@ nothing. It's now a real per-task setting (`task.remind`, default on), with
 Settings → Task reminders still the master switch. On the phone since
 build 7 (6 Oct).
 
+## Round of changes, 6 Oct
+
+Asked for by Jacky on 6 Oct; checked in the simulator, **not yet on the
+phone**. The next install should bump `ios.buildNumber` to 8.
+
+- **Finished anytime tasks sink** below the open ones (`anytimeOrder` in
+  `data/order.ts`) and lose their drag handle; unticked, a task goes back to
+  its old place, because ticking never touches `position`. Timed tasks stay
+  in clock order. A ticked row waits 600 ms where it was (`useSettle`,
+  `lib/settle.ts`) and then glides down along the same path a drop uses
+  (`Sortable`'s `ref.glide`).
+- **Carry-over** (`data/carry.ts`, Settings → Tasks, on by default).
+  Unfinished one-off tasks move to the next day, at the top of Anytime; a
+  timed one loses its time, because the time has passed (Jacky's choice).
+  Repeating tasks stay put. Decided by Jacky: **a carried task still counts
+  as missed** on the days it left — they're kept in `task.carriedFrom`, and
+  `countsByDate` counts it there, so streaks and the calendar stay honest. A
+  past day lists those tasks faded under "Moved on". iOS can't wake plancy at
+  midnight, so the move happens on launch, on coming to the front, or at
+  midnight if plancy is open; the nudges and the widget's later days apply
+  it ahead of time through `asOf()`. `settings.carrySince` stops it sweeping
+  up old history: it starts from yesterday the first time, and again each
+  time it's switched back on.
+- **Nudge voices**: Warm, Gentle, Playful, and Mix (the default, a different
+  one each day), in Settings → Nudges. All of them count what was done and
+  never what was missed ("You finished 18 things last week", not "18 of
+  22"). New moments: leftovers carried over, and yesterday finished. Fixed
+  on the way: the morning nudge used to count a streak through an unfinished
+  yesterday.
+- **Evening check-in** (opt-in, 6–10 pm, Settings → Nudges): only on a day
+  with something still open; it says what's left and that it'll move to
+  tomorrow. **The notification budget changed**: plancy keeps 60, each nudge
+  that's on reserves 7, and reminders get the rest (60, 53 or 46).
+- **Ideas**: swipe right to complete (or un-complete), as Mail marks a
+  message read (`SwipeRow`'s `leading`); the tick is the full 28 pt now; a
+  ticked idea pauses, then glides down. Categories stay as `#tag`, by Jacky's
+  choice.
+- **Repeating tasks: "This task only / This and future tasks"** on save
+  (task sheet) and delete (swipe), as an iOS action sheet. Each repeating
+  task now has a `Series` record (new `series` table) holding its rule and
+  what copies take, and copies have worked-out ids, `seriesId@date`. A
+  one-time migration (`PRAGMA user_version` 1) renamed existing copies to
+  match. "This and future" ends the series the day before and, for an edit,
+  starts a new one from the edited copy; changing the rule itself always
+  works that way. This fixed BUG-1, BUG-2 and "can't stop a repeating task"
+  from the 24 Sep list, and it's the deterministic-id half of the iCloud
+  groundwork for tasks.
+
+**Must be tried by hand on the phone**: the glide when ticking an anytime
+task, swipe right on an idea, the two action sheets, carry-over across a
+real midnight, and an evening check-in arriving.
+
+### Legal pass and the add button (6 Oct, later)
+
+- **Settings → About**: Privacy policy (in the app, from
+  `src/legal/privacy.ts`; App Review Guideline 5.1.1(i) wants it reachable
+  in-app), Terms of use (Apple's Standard EULA, opened in Safari — plancy has
+  no licence of its own), Contact support (Mail to support@clancyhq.com with
+  the version and build filled in), Open-source licences (85 components, 49
+  distinct texts, `src/legal/licences.json` from `node scripts/licences.mjs`),
+  and "plancy 1.0.0 (build) · © 2026 Clancy Sdn Bhd".
+- **For Jacky to publish**: `docs/legal/plancy-privacy-policy.md` at
+  **https://clancyhq.com/plancy/privacy** — not `/privacy`, which is Clancy
+  HQ's own policy and describes a CRM that collects data. That URL goes in
+  App Store Connect's Privacy Policy field.
+- **App Store Connect, at enrolment**: EU trader status (Digital Services
+  Act). A paid app makes Clancy a trader, and the address, phone and email
+  given are shown on the EU App Store page. See RELEASE_SPEC §2.
+- **Not needed**, and why: account deletion (no accounts), a consent banner
+  or App Tracking Transparency (no tracking), a custom EULA (Apple's
+  standard one covers a paid app), COPPA terms (no data collected from
+  anyone).
+- **`expo-image` removed.** It drew one picture (the icon on onboarding's
+  first screen) and brought six prebuilt image libraries into the app;
+  React Native's `Image` does the same job. A smaller binary, and six fewer
+  licences to carry. Needs a native rebuild, which the next install does.
+- **The add button sits 14 pt above the tab bar** (Jacky's pick of four,
+  rendered in the simulator). `Space.tabBarHeight` was 72 but the glass
+  really ends 83 pt up, which is why the button touched it; it's 83 now, so
+  the toast and every tab's scroll padding moved up with it.
+
 ## Tests (24 Sep)
 
 `npm test` runs 174 tests in about 1.5 seconds; `docs/TEST_SPEC.md` §1–3
@@ -363,8 +448,8 @@ says what each file covers and how it's set up. Things worth knowing:
   you to change the onboarding screen too.
 - **`it.failing`** marks a known bug written as the behaviour we want. It
   "passes" while the bug is there and turns red once it's fixed — then make
-  it a plain `it`. Two of them today (BUG-1, BUG-2 below). The release gate
-  says none may be left at submission.
+  it a plain `it`. None left since 6 Oct (BUG-1 and BUG-2 are fixed). The
+  release gate says none may be left at submission.
 
 **Found while writing them:**
 
@@ -372,15 +457,15 @@ says what each file covers and how it's set up. Things worth knowing:
    unticking and re-ticking the task showed a second card ("September,
    spotless"), then the day burst. `celebrate.ts` now spends everything one
    tick earned together.
-2. **BUG-1 — a deleted repeat comes back.** Delete the furthest copy of a
+2. **Fixed 6 Oct — BUG-1, a deleted repeat came back.** Delete the furthest copy of a
    repeating task (a week out) and the next top-up (next launch, or the next
    task added) recreates it with a new id. The tombstone can't stop it
    because the id differs. Deterministic ids (`seriesId@date`) plus a
    tombstone check fix it — the same ids the iCloud groundwork needs anyway.
-3. **BUG-2 — a monthly series on the 31st drifts after a delete.** The
+3. **Fixed 6 Oct — BUG-2, a monthly series on the 31st drifted after a delete.** The
    anchor day is read off the oldest copy still there; delete January's 31st
    and the series walks to the 28th from March on.
-4. **A repeating task can't reliably be stopped or changed.** Edits and
+4. **Fixed 6 Oct — a repeating task couldn't reliably be stopped or changed.** Edits and
    "Repeat: never" apply to the one copy you opened; the newest copy is the
    series' template and keeps it going. Turning Repeat off on the *newest*
    copy even creates a duplicate on its date. See "Open questions".
@@ -620,22 +705,16 @@ the top; this is the short version as of 24 Sep. Items 1 to 5 of the old list
 (correctness, permission priming, onboarding, finance editing, accessibility)
 are done, and so are the tests (24 Sep).
 
-1. **Repeat series — decided 27 Sep: "This task only / This and future
-   tasks"** on edit and on delete, like Apple's Calendar. The
-   tests found that a repeating task can't reliably be stopped or edited,
-   plus BUG-1 and BUG-2 ("Tests (24 Sep)"). The likely fix gives each series
-   its own record (rule, anchor day, end, and the title/time/notes new copies
-   take) and gives each copy a deterministic id, `seriesId@date`, so a
-   tombstone keeps a deleted copy deleted. That id is the same one item 3
-   needs, so do the two together — it's one migration instead of two. Flip
-   the two `it.failing` tests in `repeats.test.ts` to `it` when done.
+1. **Done 6 Oct: repeat series**, "This task only / This and future tasks"
+   on edit and delete, with a `Series` record per repeating task and
+   `seriesId@date` ids. See "Round of changes, 6 Oct".
 2. **App Store material** — needs no Apple account: 6.9-inch screenshots,
    listing text and keywords (drafted in `docs/RELEASE_SPEC.md`), and the
    privacy + support pages for clancyhq.com (Claude writes, Jacky publishes).
    Screenshots after the 24 Sep round, since it changed Today and every tab.
 3. **iCloud sync groundwork** — deterministic ids for generated records
-   (`seriesId@date`, `seriesId@month`, `j-date`) plus an outbox; start it
-   with item 1. Doable now;
+   (tasks have `seriesId@date` since 6 Oct; still to do: `seriesId@month`
+   for bills, `j-date` for journal) plus an outbox. Doable now;
    the `CKSyncEngine` module itself needs the developer account. If sync isn't
    solid in time, v1 ships on-device only and sync becomes v1.1. **The date
    does not move.**

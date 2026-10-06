@@ -4,8 +4,8 @@ import { join } from 'node:path';
 import type { Task } from '@/data/types';
 
 import { days, finishedDays, settings, task } from '../../test/make';
-import { composeNudge, NUDGE_DAYS, planNudges } from './nudges';
-import { planReminders, syncReminders } from './reminders';
+import { composeEvening, composeNudge, NUDGE_DAYS, planEvenings, planNudges, voiceFor } from './nudges';
+import { planReminders, reminderBudget, syncReminders } from './reminders';
 
 /* iOS's notification centre, reduced to a list plancy can fill and empty. */
 const mockCentre = {
@@ -62,13 +62,20 @@ function busyWeek(): Task[] {
 const ids = () => [...mockCentre.scheduled.keys()];
 
 describe('the notification budget', () => {
-  it('plans at most 53 reminders however busy the week is, soonest first', () => {
+  it('plans at most 60 reminders however busy the week is, soonest first', () => {
     const planned = planReminders(busyWeek(), settings(), TODAY);
-    expect(planned).toHaveLength(53);
+    expect(planned).toHaveLength(60);
     const times = planned.map((p) => p.at);
     expect(times).toEqual([...times].sort((a, b) => a - b));
     // 5:00 now, 10 minutes' lead: the 6:00 task is the first one still to come.
     expect(planned[0].task).toMatchObject({ date: TODAY, time: '06:00' });
+  });
+
+  it('gives each nudge that is on a week of the 60, and reminders the rest', () => {
+    expect(reminderBudget({ nudge: false, evening: false })).toBe(60);
+    expect(reminderBudget({ nudge: true, evening: false })).toBe(53);
+    expect(reminderBudget({ nudge: true, evening: true })).toBe(46);
+    expect(planReminders(busyWeek(), settings({ nudge: true, evening: true }), TODAY)).toHaveLength(46);
   });
 
   it('plans at most 7 nudges', () => {
@@ -86,6 +93,12 @@ describe('the notification budget', () => {
     await syncReminders(busyWeek(), settings({ remind: true, nudge: true }));
     expect(mockCentre.scheduled.size).toBe(60);
     expect(ids().filter((id) => id.startsWith('nudge-'))).toHaveLength(7);
+  });
+
+  it('never leaves more than 60 pending with reminders and both nudges on', async () => {
+    await syncReminders(busyWeek(), settings({ remind: true, nudge: true, evening: true }));
+    expect(mockCentre.scheduled.size).toBe(60);
+    expect(ids().filter((id) => id.startsWith('evening-'))).toHaveLength(7);
   });
 
   it('turning reminders off cancels every reminder but keeps the nudges', async () => {
@@ -160,11 +173,66 @@ describe('what a reminder says', () => {
   });
 });
 
+describe('voices', () => {
+  const day = [task({ date: TODAY })];
+
+  it('say the same moment three different ways', () => {
+    const titles = (['warm', 'gentle', 'playful'] as const).map((v) => composeNudge([], settings({ nudgeVoice: v }), TODAY).title);
+    expect(new Set(titles).size).toBe(3);
+  });
+
+  it('mix takes turns with all three, a day at a time', () => {
+    const voices = days('2026-09-24', '2026-09-26').map((d) => voiceFor({ nudgeVoice: 'mix' }, d));
+    expect(new Set(voices)).toEqual(new Set(['warm', 'gentle', 'playful']));
+  });
+
+  it('a chosen voice stays put', () => {
+    expect(composeNudge(day, settings({ nudgeVoice: 'gentle' }), TODAY).title).toBe(
+      composeNudge(day, settings({ nudgeVoice: 'gentle' }), TODAY).title,
+    );
+    expect(voiceFor({ nudgeVoice: 'playful' }, '2026-09-25')).toBe('playful');
+  });
+});
+
+describe('the evening check-in', () => {
+  it('says how much is left, and that it will move on', () => {
+    const tasks = [task({ title: 'Call Mum', time: '' }), task({ title: 'Gym', time: '18:00' }), task({ done: true })];
+    expect(composeEvening(tasks, settings({ carryOver: true }), TODAY)).toEqual({
+      title: '2 left today',
+      subtitle: 'Still time for one. Anything unfinished moves to tomorrow.',
+      body: '6:00 pm  ·  Gym\nAnytime  ·  Call Mum',
+    });
+  });
+
+  it('doesn’t promise a move when carry-over is off', () => {
+    expect(composeEvening([task({})], settings({ carryOver: false }), TODAY)?.subtitle).toBe('Still time to tick one off.');
+  });
+
+  it('stays quiet on a day with nothing left', () => {
+    expect(composeEvening([task({ done: true })], settings(), TODAY)).toBeNull();
+    expect(composeEvening([], settings(), TODAY)).toBeNull();
+  });
+
+  it('is planned only for the days that have something open, after its hour', () => {
+    at(21);
+    const tasks = [task({ date: TODAY }), task({ date: '2026-09-25' }), task({ date: '2026-09-27' })];
+    const planned = planEvenings(tasks, settings({ evening: true, eveningHour: 20 }), TODAY);
+    expect(planned.map((n) => n.id)).toEqual(['evening-2026-09-25', 'evening-2026-09-27']);
+  });
+
+  it('turning it off cancels it', async () => {
+    await syncReminders([task({ date: '2026-09-25' })], settings({ remind: false, evening: true }));
+    expect(ids()).toEqual(['evening-2026-09-25']);
+    await syncReminders([task({ date: '2026-09-25' })], settings({ remind: false, evening: false }));
+    expect(ids()).toEqual([]);
+  });
+});
+
 describe('the morning nudge', () => {
   it('invites a first task on an empty day', () => {
     expect(composeNudge([], settings(), TODAY)).toEqual({
-      title: 'A blank page',
-      subtitle: 'What’s one thing worth doing today?',
+      title: 'A clear day',
+      subtitle: 'Add one thing you’d be glad to have done',
       body: 'Open plancy and add the first thing. Small plans count.',
     });
   });
@@ -193,7 +261,33 @@ describe('the morning nudge', () => {
 
   it('counts the days of a streak in progress', () => {
     const tasks = [...finishedDays(4, '2026-09-23'), task({ date: TODAY })];
-    expect(composeNudge(tasks, settings(), TODAY).title).toBe('Day 5. Keep it going');
+    expect(composeNudge(tasks, settings(), TODAY).title).toBe('4 days running. Make it 5');
+  });
+
+  it('knows an unfinished yesterday ended the streak', () => {
+    const tasks = [...finishedDays(4, '2026-09-22'), task({ date: '2026-09-23' }), task({ date: TODAY })];
+    expect(composeNudge(tasks, settings(), TODAY).title).not.toMatch(/days running/);
+  });
+
+  it('notices a finished yesterday', () => {
+    const tasks = [task({ date: '2026-09-23', done: true }), task({ date: '2026-09-23', done: true }), task({ date: TODAY })];
+    expect(composeNudge(tasks, settings(), TODAY)).toMatchObject({
+      title: 'Yesterday: all 2 done. Nice.',
+      subtitle: '1 planned, first at 9:00 am',
+    });
+  });
+
+  it('welcomes what was carried over, without counting it as a failure', () => {
+    const tasks = [task({ date: '2026-09-23', title: 'Book the plumber' })];
+    const nudge = composeNudge(tasks, settings({ carryOver: true }), TODAY);
+    expect(nudge).toMatchObject({ title: 'Fresh start', subtitle: '1 came over from yesterday. Today’s a new go.' });
+    expect(nudge.body).toBe('Anytime  ·  Book the plumber');
+  });
+
+  it('plans tomorrow with today’s leftovers already moved in', () => {
+    const tasks = [task({ date: TODAY, title: 'Book the plumber' })];
+    expect(composeNudge(tasks, settings({ carryOver: true }), '2026-09-25').body).toBe('Anytime  ·  Book the plumber');
+    expect(composeNudge(tasks, settings({ carryOver: false }), '2026-09-25').body).not.toContain('plumber');
   });
 
   it('opens a week with last week’s tally', () => {
@@ -205,8 +299,8 @@ describe('the morning nudge', () => {
       task({ date: monday, time: '09:00' }),
     ];
     expect(composeNudge(tasks, settings(), monday)).toMatchObject({
-      title: 'A fresh week',
-      subtitle: 'Last week: 2 of 3 done. 1 planned, first at 9:00 am.',
+      title: 'New week, clean slate',
+      subtitle: 'You finished 2 things last week. 1 planned, first at 9:00 am.',
     });
   });
 
@@ -214,8 +308,13 @@ describe('the morning nudge', () => {
     const tasks = [task({ date: '2026-09-10', done: true }), task({ date: '2026-09-30', done: false })];
     expect(composeNudge(tasks, settings(), '2026-10-01')).toMatchObject({
       title: 'Hello, October',
-      subtitle: 'Last month: 1 of 2 done. Nothing planned yet.',
+      subtitle: 'You finished 1 thing last month. Nothing planned yet.',
     });
+  });
+
+  it('counts what was done, never what was missed', () => {
+    const tasks = [task({ date: '2026-09-22', done: false }), task({ date: '2026-09-28', time: '09:00' })];
+    expect(composeNudge(tasks, settings(), '2026-09-28').subtitle).toBe('1 planned, first at 9:00 am.');
   });
 
   it('greets differently on consecutive ordinary days', () => {

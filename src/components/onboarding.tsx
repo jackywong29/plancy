@@ -11,10 +11,9 @@
  * Review treats habit nudges as marketing, and bundling one into the reminder
  * ask is the shape that gets flagged.
  */
-import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { Icon, Segmented } from '@/components/ui';
@@ -145,7 +144,7 @@ export function Onboarding({
             lead="One notification a day with the plan ahead."
             feature={
               <NotificationPreview
-                title="Day 12. Keep it going"
+                title="11 days running. Make it 12"
                 subtitle="3 planned, first at 7:00 am"
                 body={'7:00 am  ·  Morning run\n9:30 am  ·  Stand-up\n2:00 pm  ·  Draft the spec'}
                 actions={['See my day', 'Add a task']}
@@ -211,7 +210,7 @@ function NotificationPreview({
         <Image
           source={require('../../assets/icon/plancy-light.png')}
           style={styles.noticeIcon}
-          contentFit="cover"
+          resizeMode="cover"
         />
         <Text style={{ flex: 1, color: theme.ink2, fontSize: 11, letterSpacing: 0.6 }}>PLANCY</Text>
         <Text style={{ color: theme.ink3, fontSize: 11 }}>now</Text>

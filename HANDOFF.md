@@ -10,7 +10,8 @@ app called **plancy.**, to be sold on the App Store by his company Clancy.
 Nothing is public yet. It runs in the simulator and on Jacky's own iPhone 17
 Pro Max, installed over the cable with his free Apple ID (see "On Jacky's
 iPhone" below). **That signing lasts 7 days: it was last renewed from the
-Mac mini on 6 Oct (build 7) and expires 13 Oct, 2:22 pm KL time.** Plug the
+Mac mini on 6 Oct (build 7; build 8 went on the same day under the same
+profile) and expires 13 Oct, 2:22 pm KL time.** Plug the
 phone in (or have it on the same Wi-Fi) and run `sh scripts/install-on-iphone.sh`
 to renew it; data survives. A renewal after a new profile may need Settings →
 General → VPN & Device Management → trust the Apple ID again.
@@ -31,6 +32,10 @@ General → VPN & Device Management → trust the Apple ID again.
   describe what plancy *is*, not what it was once meant to be. The
   Implementation Guide carries the week-by-week plan to the 9 Nov submission.
 - **Launch plan:** https://claude.ai/artifact/FtoMDwzjv6KxCXDfqWZA9P
+- **1.1 plan (6 Oct):** https://claude.ai/artifact/PKo5Ldy1QmntUeAUEXnfnA —
+  Siri through App Intents, smart quick-add on Apple's on-device model
+  (Foundation Models), four weeks after 1.0 is submitted. No downloadable
+  model. Three decisions waiting on Jacky at the bottom.
 - **Design draft (clickable HTML):** https://claude.ai/artifact/AtdezYxSubQXP6vgejuYTi
 
 ## Start here — state on 6 Oct
@@ -44,7 +49,7 @@ General → VPN & Device Management → trust the Apple ID again.
   changes, 24 Sep" below.
 - **Build 7 (6 Oct)**, installed from the Mac mini: the task sheet's Remind
   me switch as a real per-task setting, and the celebration fix (below).
-- **6 Oct round, not yet on the phone (will be build 8)**: finished anytime
+- **6 Oct round, on the phone as build 8**: finished anytime
   tasks sink, unfinished tasks carry over to the next day, three nudge
   voices plus an evening check-in, ideas swipe right to complete, and
   repeating tasks ask "This task only / This and future tasks". Details in
@@ -345,8 +350,8 @@ build 7 (6 Oct).
 
 ## Round of changes, 6 Oct
 
-Asked for by Jacky on 6 Oct; checked in the simulator, **not yet on the
-phone**. The next install should bump `ios.buildNumber` to 8.
+Asked for by Jacky on 6 Oct; checked in the simulator, and **on the phone
+as build 8** (6 Oct).
 
 - **Finished anytime tasks sink** below the open ones (`anytimeOrder` in
   `data/order.ts`) and lose their drag handle; unticked, a task goes back to
@@ -728,9 +733,11 @@ are done, and so are the tests (24 Sep).
    paste through `parseMoney`. Small; needs a hand test on the phone.
 8. Move UI text out of the code for translation (structure now, translate
    later).
-9. **Version 1.1**: Siri via App Intents ("Add a task in plancy", "What's on
-   my plancy today?" — the widget's app-group data already has the answer),
-   and the iOS 26 glass add circle if react-native-screens adopts UITab.
+9. **Version 1.1**: planned 6 Oct, see the 1.1 plan link at the top: Siri
+   via App Intents ("Add a task in plancy", "What's on my plancy today?" —
+   the widget's app-group data already has the answer) and smart quick-add
+   on Apple's on-device model; the iOS 26 glass add circle if
+   react-native-screens adopts UITab.
 
 ## Confirmed on Jacky's phone (18 Sep)
 

@@ -19,7 +19,7 @@
         "NSFaceIDUsageDescription": "Unlock plancy with Face ID.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "buildNumber": "6"
+      "buildNumber": "7"
     },
     "web": {
       "output": "static",

@@ -1,7 +1,7 @@
 # plancy. — handoff
 
 Paste this into a new chat, or just say "read ~/plancy/HANDOFF.md and continue".
-Written 16 Sep 2026, last updated 24 Sep 2026.
+Written 16 Sep 2026, last updated 6 Oct 2026.
 
 ## What this is
 
@@ -10,7 +10,7 @@ app called **plancy.**, to be sold on the App Store by his company Clancy.
 Nothing is public yet. It runs in the simulator and on Jacky's own iPhone 17
 Pro Max, installed over the cable with his free Apple ID (see "On Jacky's
 iPhone" below). **That signing lasts 7 days: it was last renewed from the
-MacBook Air on 1 Oct, so renew it from the Mac mini before 8 Oct.** Plug the
+Mac mini on 6 Oct (build 7) and expires 13 Oct, 2:22 pm KL time.** Plug the
 phone in (or have it on the same Wi-Fi) and run `sh scripts/install-on-iphone.sh`
 to renew it; data survives. A renewal after a new profile may need Settings →
 General → VPN & Device Management → trust the Apple ID again.
@@ -18,8 +18,9 @@ General → VPN & Device Management → trust the Apple ID again.
 - **Machine:** since 2 Oct, the **M4 Mac mini** (Mac user `clancy`, Xcode 27,
   Node 24 LTS at `/usr/local/bin/node`). It was built on the MacBook Air before
   that; the Air is Jacky's personal Mac again. The first simulator build on the
-  mini succeeded on 2 Oct. Not yet done from the mini: an iPhone install —
-  Xcode needs the signing Apple ID added (Settings → Accounts) first.
+  mini succeeded on 2 Oct, and the first iPhone install on 6 Oct: Xcode was
+  already signed in, and `-allowProvisioningUpdates` made the mini its own
+  Apple Development certificate on the way.
 - **Code:** `~/plancy` (git, all work committed; private on GitHub as
   `jackywong29/plancy`).
   Project notes live in `AGENTS.md`; seven specs live in `docs/`.
@@ -41,9 +42,8 @@ General → VPN & Device Management → trust the Apple ID again.
   the whole app, Lock Screen widgets that hide task names while the app is
   locked, and anytime tasks you drag into order. Details in "Round of
   changes, 24 Sep" below.
-- **After build 6**, *not yet on the phone*: the task sheet's Remind me
-  switch is now a real per-task setting, and a celebration fix (below).
-  Build 7 will carry them.
+- **Build 7 (6 Oct)**, installed from the Mac mini: the task sheet's Remind
+  me switch as a real per-task setting, and the celebration fix (below).
 - **Tests exist (24 Sep): 174 of them, `npm test`, ~1.5 s.** Everything
   `docs/TEST_SPEC.md` §3 asked for, plus the drag maths and the widget
   rendered offline in every family. Keep `npm test` and `npx tsc --noEmit`
@@ -336,8 +336,8 @@ drop), the add button on each tab, and adding a Lock Screen widget.
 
 **Fixed after build 6:** the task sheet's **Remind me** switch used to do
 nothing. It's now a real per-task setting (`task.remind`, default on), with
-Settings → Task reminders still the master switch. Not on the phone until
-build 7.
+Settings → Task reminders still the master switch. On the phone since
+build 7 (6 Oct).
 
 ## Tests (24 Sep)
 

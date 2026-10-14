@@ -149,16 +149,34 @@ export function upcomingRepeats(
   return out;
 }
 
-/**
- * "Delete this and future tasks": `s` stops the day before `from`, and its
- * copies on that day and after go, ticked or not. The record stays, ended,
- * so nothing can mistake its older copies for a series that lost its record.
- */
-export function endSeries(s: Series, tasks: Task[], from: Task, now = Date.now()): { series: Series; remove: Task[] } {
+/** `s` stopped the day before `from`, and its copies on that day and after. */
+function stop(s: Series, tasks: Task[], from: Task, now: number): { series: Series; remove: Task[] } {
   return {
     series: { ...s, until: addDays(from.date, -1), syncedAt: now },
     remove: tasks.filter((t) => t.seriesId === s.id && t.date >= from.date),
   };
+}
+
+/**
+ * An ended series none of whose copies are left in `tasks`, blanked: nothing
+ * copies it again, so deleted words don't outlive their tasks in the record
+ * (which stays, ended).
+ * Undefined when it's still running, has copies, or is already blank.
+ */
+export function emptied(s: Series, tasks: Task[], now = Date.now()): Series | undefined {
+  if (!s.until || (!s.title && !s.notes) || tasks.some((t) => t.seriesId === s.id)) return undefined;
+  return { ...s, title: '', notes: '', syncedAt: now };
+}
+
+/**
+ * "Delete this and future tasks": `s` stops the day before `from`, and its
+ * copies on that day and after go, ticked or not. The record stays, ended,
+ * so nothing can mistake its older copies for a series that lost its record;
+ * its title and notes go with the copies (older copies keep their own).
+ */
+export function endSeries(s: Series, tasks: Task[], from: Task, now = Date.now()): { series: Series; remove: Task[] } {
+  const ended = stop(s, tasks, from, now);
+  return { series: { ...ended.series, title: '', notes: '' }, remove: ended.remove };
 }
 
 /**
@@ -171,7 +189,8 @@ export function endSeries(s: Series, tasks: Task[], from: Task, now = Date.now()
  * Editing from a series' very first copy gives that copy a new id
  * (`newId`): the new series is named after its first copy, and the old name
  * stays with the old, ended series, whose deleted copies' tombstones would
- * otherwise stop the new one filling those days.
+ * otherwise stop the new one filling those days. The ended series is blanked
+ * (`emptied`) when no copy of it is left.
  */
 export function splitSeries(
   s: Series | undefined,
@@ -185,13 +204,15 @@ export function splitSeries(
   let remove: Task[] = [];
   let id = task.id;
   if (s) {
-    const ended = endSeries(s, tasks, task, now);
-    series.push(ended.series);
+    const ended = stop(s, tasks, task, now);
     remove = ended.remove.filter((t) => t.id !== task.id);
     if (task.id === s.id) {
       id = newId();
       remove.push(task);
     }
+    // Copies from `task`'s day on are gone, and `task` itself leaves the old series.
+    const left = tasks.filter((t) => t.id !== task.id && t.date < task.date);
+    series.push(emptied(ended.series, left, now) ?? ended.series);
   }
   const edited: Task = { ...task, ...patch, id, seriesId: id, syncedAt: now };
   if (edited.repeat) series.push(seriesFrom(edited, now));

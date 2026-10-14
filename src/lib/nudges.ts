@@ -10,7 +10,8 @@
  * - a headline that knows the moment: a streak milestone within reach today,
  *   the start of a week or a month, leftovers carried over, a streak in
  *   progress, yesterday finished, an empty day;
- * - the first three things planned, in the notification itself;
+ * - the first three things planned, in the notification itself (only how
+ *   many while plancy is private: the whole-app lock is on, lib/private.ts);
  * - in the morning, "See my day" and "Add a task" when you press and hold it.
  *
  * They count what was done, never what wasn't: "You finished 18 things last
@@ -27,6 +28,7 @@ import { asOf } from '@/data/carry';
 import { countsByDate, streak, tasksForDay } from '@/data/select';
 import type { Settings, Task } from '@/data/types';
 import { addDays, addMonths, formatMonthLong, fromIso, isoMonth, splitTime } from '@/lib/format';
+import { isPrivate } from '@/lib/private';
 
 export const NUDGE_DAYS = 7;
 export const NUDGE_CATEGORY = 'plancy-nudge';
@@ -161,11 +163,15 @@ function when(t: Task, hour12: boolean): string {
   return `${time}${suffix ? ` ${suffix}` : ''}`;
 }
 
-/** "7:00 am  ·  Run", the first three, then "and 2 more". */
-function lines(open: Task[], hour12: boolean): string[] {
-  const out = open.slice(0, 3).map((t) => `${when(t, hour12)}  ·  ${t.title}`);
+/**
+ * The body listing open tasks: "7:00 am  ·  Run", the first three, then
+ * "and 2 more". While private it names none, and only says how many.
+ */
+function listed(open: Task[], settings: Settings): string {
+  if (isPrivate(settings)) return `Open plancy to see ${open.length === 1 ? 'it' : `all ${open.length}`}.`;
+  const out = open.slice(0, 3).map((t) => `${when(t, settings.hour12)}  ·  ${t.title}`);
   if (open.length > 3) out.push(`and ${open.length - 3} more`);
-  return out;
+  return out.join('\n');
 }
 
 /** The notification for the morning of `day`. Exported for the Settings preview. */
@@ -216,7 +222,7 @@ export function composeNudge(tasks: Task[], settings: Settings, day: string): Wo
     title = copy.greetings[dayIndex(day) % copy.greetings.length];
   }
 
-  const body = open.length > 0 ? lines(open, settings.hour12).join('\n') : 'Open plancy and add the first thing. Small plans count.';
+  const body = open.length > 0 ? listed(open, settings) : 'Open plancy and add the first thing. Small plans count.';
   return { title, subtitle, body };
 }
 
@@ -225,7 +231,7 @@ export function composeEvening(tasks: Task[], settings: Settings, day: string): 
   const open = tasksForDay(asOf(tasks, day, settings), day).filter((t) => !t.done);
   if (open.length === 0) return null;
   const [title, subtitle] = COPY[voiceFor(settings, day)].evening(open.length, settings.carryOver);
-  return { title, subtitle, body: lines(open, settings.hour12).join('\n') };
+  return { title, subtitle, body: listed(open, settings) };
 }
 
 /** What every nudge shares: the chime, and what a tap opens. Mornings add their buttons. */

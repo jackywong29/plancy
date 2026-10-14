@@ -7,7 +7,7 @@ import { useAddAction } from '@/lib/add-action';
 import { PrivateLock, useLock } from '@/lib/lock';
 import { haptic } from '@/lib/haptics';
 import type { Mood } from '@/data/types';
-import { addDays, formatDayLong, formatDayShort, todayIso } from '@/lib/format';
+import { addDays, formatDayLong, formatDayShort } from '@/lib/format';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 const MOODS: { key: Mood; label: string; size: number }[] = [
@@ -19,10 +19,18 @@ const MOODS: { key: Mood; label: string; size: number }[] = [
 ];
 
 export default function JournalScreen() {
-  const { journal, writeJournal } = useStore();
+  const { journal, today, writeJournal } = useStore();
   const theme = useTheme();
-  const today = todayIso();
   const [date, setDate] = useState(today);
+
+  // The day turned while plancy was open. If it was showing today, it moves
+  // on with it, as the Today tab does.
+  const shownToday = useRef(today);
+  useEffect(() => {
+    if (shownToday.current === today) return;
+    if (date === shownToday.current) setDate(today);
+    shownToday.current = today;
+  }, [today, date]);
   const entry = journal.find((e) => e.date === date);
   const [body, setBody] = useState(entry?.body ?? '');
   const [query, setQuery] = useState('');

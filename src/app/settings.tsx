@@ -16,12 +16,15 @@ import { askPermission, permissionState, previewNudge, type PermissionState } fr
 import { PALETTE } from '@/theme/palette';
 import { Space, Type, useTheme } from '@/theme/theme';
 
+/** The build on Jacky's own iPhone (app.config.js), never the App Store one. */
+const PHONE_BUILD = Constants.expoConfig?.ios?.bundleIdentifier === 'com.clancyhq.plancy.dev';
+
 /**
  * Sample data and erase, for trying the app out. In development and in the
- * build on Jacky's own iPhone (app.config.js sets testTools), never in the
- * App Store build.
+ * build on Jacky's own iPhone (app.config.js sets testTools there, and its
+ * own bundle id), never in the App Store build: the flag alone isn't enough.
  */
-const TEST_TOOLS = __DEV__ || Constants.expoConfig?.extra?.testTools === true;
+const TEST_TOOLS = __DEV__ || (Constants.expoConfig?.extra?.testTools === true && PHONE_BUILD);
 
 function nudgeLabel(hour: number, hour12: boolean): string {
   const { time, suffix } = splitTime(`${String(hour).padStart(2, '0')}:00`, hour12);
@@ -30,6 +33,10 @@ function nudgeLabel(hour: number, hour12: boolean): string {
 
 const VERSION = Constants.expoConfig?.version ?? '';
 const BUILD = Constants.expoConfig?.ios?.buildNumber ?? '';
+/** "1.0.0 (3)", or just the version when there's no build number. */
+const VERSION_LABEL = BUILD ? `${VERSION} (${BUILD})` : VERSION;
+/** Said under the logo only when this isn't the App Store build. */
+const BUILD_KIND = __DEV__ ? 'development build' : PHONE_BUILD ? 'test build' : '';
 const SUPPORT = 'support@clancyhq.com';
 /** plancy has no licence of its own: it's sold under Apple's standard EULA, as most App Store apps are. */
 const APPLE_EULA = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
@@ -37,7 +44,7 @@ const APPLE_EULA = 'https://www.apple.com/legal/internet-services/itunes/dev/std
 /** Mail, addressed and with the version in, so a support email says which build it's about. */
 async function emailSupport() {
   haptic('select');
-  const body = encodeURIComponent(`\n\n—\nplancy ${VERSION} (${BUILD}), iOS ${Platform.Version}`);
+  const body = encodeURIComponent(`\n\n—\nplancy ${VERSION_LABEL}, iOS ${Platform.Version}`);
   try {
     await Linking.openURL(`mailto:${SUPPORT}?subject=${encodeURIComponent('plancy')}&body=${body}`);
   } catch {
@@ -434,7 +441,7 @@ export default function SettingsScreen() {
               label="What Face ID locks"
               options={LOCK_SCOPES}
               value={settings.lockScope}
-              onChange={(v) => setSetting('lockScope', v)}
+              onChange={(v) => void lock.setScope(v)}
             />
           </View>
         ) : null}
@@ -467,7 +474,7 @@ export default function SettingsScreen() {
         </Row>
       </Card>
       <Text style={[styles.footnote, { color: theme.ink2 }]}>
-        plancy {VERSION} ({BUILD}) · © 2026 Clancy Sdn Bhd. Sold under Apple's standard licence for App Store apps.
+        plancy {VERSION_LABEL} · © 2026 Clancy Sdn Bhd. Sold under Apple's standard licence for App Store apps.
       </Text>
 
       {TEST_TOOLS ? (
@@ -508,7 +515,10 @@ export default function SettingsScreen() {
         <Text style={{ color: theme.ink2, fontFamily: Type.display, fontSize: 16 }}>
           made by clancy<Text style={{ color: theme.accent }}>.</Text>
         </Text>
-        <Text style={{ color: theme.ink3, fontSize: Type.footnote }}>plancy 1.0, development build</Text>
+        <Text style={{ color: theme.ink3, fontSize: Type.footnote }}>
+          plancy {VERSION}
+          {BUILD_KIND ? `, ${BUILD_KIND}` : ''}
+        </Text>
       </View>
     </Screen>
   );

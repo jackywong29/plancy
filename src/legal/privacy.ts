@@ -10,7 +10,7 @@
  * purpose (no `@/` imports): Node reads this file directly.
  */
 
-export type PolicySection = { heading: string; paragraphs: string[] };
+type PolicySection = { heading: string; paragraphs: string[] };
 
 export const PRIVACY = {
   title: 'plancy privacy policy',

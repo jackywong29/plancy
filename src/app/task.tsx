@@ -1,8 +1,9 @@
 /**
  * New task / edit task, as a sheet.
  *
- * Opened with `?date=YYYY-MM-DD` for a new task on that day, or `?id=…` to
- * edit. The time wheel is the real iOS one, through Expo UI.
+ * Opened with `?date=YYYY-MM-DD` for a new task on that day (anything that
+ * isn't a real day falls back to today), or `?id=…` to edit. The time wheel
+ * is the real iOS one, through Expo UI.
  */
 import { DatePicker, Host } from '@expo/ui/swift-ui';
 import { datePickerStyle, labelsHidden } from '@expo/ui/swift-ui/modifiers';
@@ -14,7 +15,7 @@ import { askScope } from '@/components/scope-sheet';
 import { Card, Chip, Row, SectionHead, Segmented } from '@/components/ui';
 import { useStore, type Scope } from '@/data/store';
 import type { Repeat } from '@/data/types';
-import { addDays, formatDayShort, fromIso, isoDate } from '@/lib/format';
+import { addDays, formatDayShort, fromIso, isoDate, validDate } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { Space, Type, useTheme } from '@/theme/theme';
 
@@ -35,7 +36,7 @@ export default function TaskSheet() {
 
   const [title, setTitle] = useState(existing?.title ?? '');
   const [notes, setNotes] = useState(existing?.notes ?? '');
-  const [date, setDate] = useState(existing?.date ?? params.date ?? today);
+  const [date, setDate] = useState(existing?.date ?? validDate(params.date) ?? today);
   // Off makes it an anytime task: no time, no reminder, and a place in the
   // list below the timed tasks that the person sets by dragging.
   const [timed, setTimed] = useState(existing ? existing.time !== '' : true);

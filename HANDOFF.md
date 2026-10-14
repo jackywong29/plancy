@@ -104,7 +104,7 @@ General → VPN & Device Management → trust the Apple ID again.
 
 ```sh
 cd ~/plancy
-. scripts/ios-env.sh && npx expo run:ios      # simulator; first build ~10 min, later ones seconds
+. scripts/ios-env.sh && npm run ios           # simulator (sets PLANCY_DEV=1 for Metro); first build ~10 min
 npx tsc --noEmit                              # typecheck; keep it clean
 npm test                                      # 174 tests, ~1.5 s; keep them green
 ```
@@ -174,17 +174,23 @@ installed straight onto Jacky's iPhone 17 Pro Max over the cable:
 sh scripts/install-on-iphone.sh      # prebuild in "phone" mode + Release build + install
 ```
 
-- Signed with Jacky's free personal team `TN5SQM7946` (Xcode is signed in to
-  that Apple ID; Developer Mode is on on the phone).
+- Signed with Jacky's free personal team (Xcode is signed in to that Apple
+  ID; Developer Mode is on on the phone). The team id and the iPhone's UDID
+  are not in git: put `PLANCY_TEAM=…` and `IPHONE=…` in `.env.local`
+  (gitignored) or the environment. The script stops with a message if
+  either is missing.
 - `app.config.js` switches on `PLANCY_PHONE`: bundle id
-  `com.clancyhq.plancy.dev` (so the free team never claims the real id) and no
-  `aps-environment` entitlement (free teams can't have push; reminders are
-  local and still work).
+  `com.clancyhq.plancy.dev` (so the free team never claims the real id) and
+  test tools on. No build has the `aps-environment` entitlement: reminders
+  and nudges are local notifications.
+- The script runs under `pipefail` and deletes the previous `plancy.app`
+  first, so a failed xcodebuild stops it instead of reinstalling an old build.
 - Release build: JS is bundled in, no Metro, no sample data. It's the real copy.
 - **Free signing expires after 7 days**: the app stops opening. Re-run the
   script; data survives as long as the app isn't deleted.
 - The script leaves `ios/` in phone mode. For the simulator again:
-  `npx expo prebuild --platform ios --clean` then `npx expo run:ios`.
+  `PLANCY_DEV=1 npx expo prebuild --platform ios --clean` then `npm run ios`
+  (`PLANCY_DEV=1` keeps `NSAllowsLocalNetworking`, which Metro needs).
 - First install only: on the phone, Settings → General → VPN & Device
   Management → trust the Apple ID.
 
@@ -221,7 +227,7 @@ src/components/sortable.tsx    drag-to-reorder list (anytime tasks); Move up/dow
 src/lib/add-action.ts      the one add button: each tab registers useAddAction(label, action)
 src/data/order.ts          a day's order (timed by clock, anytime by position) + drag maths
 plugins/with-widget-privacy-manifest.js  widget extension's PrivacyInfo.xcprivacy (register before expo-widgets)
-plugins/with-store-hygiene.js  drops unused Info.plist keys; PLANCY_STORE=1 for the upload build
+plugins/with-store-hygiene.js  drops unused Info.plist keys; local networking only with PLANCY_DEV=1 or PLANCY_PHONE
 src/data/types.ts          records; every one carries syncedAt, ready for iCloud merge
 src/data/db.ts             SQLite schema, reads/writes, tombstones, migrations
 src/data/store.tsx         in-memory store writing through to SQLite (opens the db on import)
@@ -674,16 +680,19 @@ had no `PrivacyInfo.xcprivacy`. `expo-widgets` ships none of its own and its
 `WidgetsStorage.swift` reads the app group through `UserDefaults(suiteName:)`,
 a required-reason API, from inside a bundle that declared nothing. A missing
 manifest is an automated rejection at upload, not a review note. The plugin
-writes the manifest (declaring only `CA92.1`) and gives the widget target its
-own Resources build phase, which it never had — `addResourceFile` is no use
+writes the manifest (declaring `1C8F.1`, App Group defaults; it said `CA92.1`
+until 14 Oct, which is the wrong reason for defaults shared with the app) and
+gives the widget target its own Resources build phase, which it never had —
+`addResourceFile` is no use
 here because it resolves "Resources" across the whole project and would have
 bundled the file into the *app* target instead.
 
 **Fixed — `plugins/with-store-hygiene.js`.** Drops `NSSupportsLiveActivities`
-(plancy has none) from every build, and `NSAllowsLocalNetworking` from store
-builds only, since Metro needs it while developing. Build the upload with
-`PLANCY_STORE=1`; the plugin prints which mode it ran in, so a missed flag
-shows up in the prebuild output instead of in the archive.
+(plancy has none) from every build. Since 14 Oct it also drops
+`NSAllowsLocalNetworking` **by default**, and keeps it only when
+`PLANCY_DEV=1` (`npm run ios` sets it) or `PLANCY_PHONE` is set. A store
+prebuild needs no flag, so forgetting one can't ship the key. The plugin
+prints which mode it ran in.
 
 > **Both plugins are registered ahead of `expo-widgets` in app.json, and that
 > is load-bearing.** Expo runs a *later*-registered mod *earlier*, so listed
@@ -691,12 +700,29 @@ shows up in the prebuild output instead of in the archive.
 > prebuild, and the hygiene plugin deletes Info.plist keys that expo-widgets
 > then writes straight back. Verified both ways round.
 
-**Still open — two product decisions.** The Face ID lock doesn't reach the
-**widget** (task titles stay on the home screen while the app is locked) or
-**notifications** (reminders carry the task title; the nudge carries three).
-Both only diverge under the whole-app scope — under Journal & Finance, tasks
-aren't private anyway. Fixes are sketched in RELEASE_SPEC §4b.1–2 and need a
-decision about how much a locked widget should still say.
+**Fixed since — both product decisions.** Under the whole-app lock the widget
+hides task names (24 Sep; since 14 Oct the titles are blanked in the payload too),
+and reminders and nudges carry generic copy with no task name (14 Oct), with
+delivered notifications cleared when the lock turns on. All of it goes
+through `isPrivate` in `src/lib/private.ts`. See RELEASE_SPEC §4b.1–2.
+
+**Security review, 14 Oct.** Fixed in code; the device checks are in
+RELEASE_SPEC §4b ("Security review, 14 Oct 2026"):
+- App manifest via `app.json` `ios.privacyManifests` (UserDefaults
+  `CA92.1` + `1C8F.1`, plus every category the pods use).
+- App-switcher cover: `expo-screen-capture`'s native blur is on while the
+  lock is on, alongside `PrivacyCover`. **Needs a device check**, including
+  with a sheet open and during Face ID.
+- Finance and Journal sheets render `SheetLock` while locked and close on
+  relock. The private lock screen appears at once over content at opacity 0.
+  Deep-link params are validated.
+- No push entitlement in any build. `.gitignore` covers env files and
+  signing/build artefacts. The phone script no longer commits the team id or
+  UDID, and fails properly. `scripts/reset-project.js` is gone.
+- `shell-quote` is pinned to `^1.12.0` with an npm `overrides` entry (dev
+  tooling only). `decode-uri-component@0.2.2` (via expo-router → query-string
+  `^0.2.2`) stays: the only patched release, 0.5.0, is outside that range and
+  ESM-only. It clears with the expo-router that drops it.
 
 **Note.** `plancy.db` uses the iOS default protection class, so the Face ID
 lock is a borrowed-phone protection, not an encryption boundary. The listing

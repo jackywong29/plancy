@@ -1,5 +1,5 @@
 import { bill, finishedDays, task } from '../../test/make';
-import { countsByDate, monthTotals, streak, tasksForDay } from './select';
+import { countsByDate, monthTotals, streak, streakFrom, tasksForDay, withTicked } from './select';
 
 describe('streak', () => {
   it('counts finished days in a row, ending today', () => {
@@ -77,5 +77,24 @@ describe('monthTotals', () => {
 
   it('can go below zero', () => {
     expect(monthTotals([bill({ kind: 'bill', amountMinor: 100 })]).left).toBe(-100);
+  });
+});
+
+describe('streakFrom and withTicked', () => {
+  it('match working it out from the ticked list', () => {
+    const today = '2026-09-24';
+    const tasks = [
+      task({ id: 'y', date: '2026-09-23', done: true }),
+      task({ id: 'a', date: today, done: true }),
+      task({ id: 'b', date: today }),
+    ];
+    const counts = countsByDate(tasks);
+    expect(streakFrom(counts, today)).toBe(streak(tasks, today));
+    const after = tasks.map((t) => (t.id === 'b' ? { ...t, done: true } : t));
+    const ticked = withTicked(counts, today);
+    expect(ticked).toEqual(countsByDate(after));
+    expect(streakFrom(ticked, today)).toBe(2);
+    // The original counts are left alone.
+    expect(counts.get(today)).toEqual({ total: 2, done: 1 });
   });
 });

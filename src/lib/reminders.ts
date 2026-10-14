@@ -14,6 +14,7 @@ import * as Notifications from 'expo-notifications';
 import type { Settings, Task } from '@/data/types';
 import { addDays, splitTime, todayIso } from '@/lib/format';
 import { composeEvening, composeNudge, ensureNudgeActions, NUDGE_DAYS, nudgeContent, planEvenings, planNudges } from '@/lib/nudges';
+import { isPrivate } from '@/lib/private';
 
 const HORIZON_DAYS = 7;
 /** Four under iOS's 64, so a preview always has room. */
@@ -70,17 +71,46 @@ export async function permissionState(): Promise<PermissionState> {
   return c.canAskAgain ? 'ask' : 'blocked';
 }
 
+/** The newest snapshot waiting to be scheduled, and whether a run is queued to take it. */
+let latest: { tasks: Task[]; settings: Settings } | null = null;
+let queued = false;
 let pending: Promise<void> = Promise.resolve();
 
-/** Replace every scheduled reminder with the current plan. Calls are serialised. */
+/**
+ * Replace every scheduled reminder with the current plan. Runs one at a time,
+ * and calls made while one runs fold into a single run with the newest
+ * snapshot: five quick ticks reschedule twice, not five times. The promise
+ * settles once this snapshot, or a newer one, is in place.
+ */
 export function syncReminders(tasks: Task[], settings: Settings): Promise<void> {
-  pending = pending.then(() => reschedule(tasks, settings)).catch(() => undefined);
+  latest = { tasks, settings };
+  if (!queued) {
+    queued = true;
+    pending = pending
+      .then(() => {
+        queued = false;
+        const next = latest!;
+        latest = null;
+        return reschedule(next.tasks, next.settings);
+      })
+      .catch(() => undefined);
+  }
   return pending;
 }
 
 const PREVIEW_ID = 'nudge-preview';
 
+/** Whether the last run was private; null before the first one. */
+let wasPrivate: boolean | null = null;
+
 async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
+  // The whole-app lock just turned on: reminders and nudges already sitting
+  // in Notification Center still name tasks, so they go. Every way of turning
+  // it on (Settings, the scope switch) changes settings, which lands here.
+  const hidden = isPrivate(settings);
+  if (hidden && wasPrivate === false) await Notifications.dismissAllNotificationsAsync().catch(() => undefined);
+  wasPrivate = hidden;
+
   // Everything plancy planned goes, except a preview that is about to arrive.
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   for (const n of scheduled) {
@@ -112,30 +142,30 @@ async function reschedule(tasks: Task[], settings: Settings): Promise<void> {
       });
     }
   }
-  for (const { task, at } of planReminders(tasks, settings, today)) {
-    const { time, suffix } = splitTime(task.time, settings.hour12);
+  for (const { task, at, title, body } of planReminders(tasks, settings, today)) {
     await Notifications.scheduleNotificationAsync({
       identifier: task.id,
-      content: {
-        title: task.title,
-        body: settings.leadMinutes === 0 ? `Now, ${time} ${suffix}`.trim() : `In ${settings.leadMinutes} min, ${time} ${suffix}`.trim(),
-        data: { taskId: task.id, date: task.date },
-      },
+      content: { title, body, data: { taskId: task.id, date: task.date } },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(at) },
     });
   }
 }
 
+export type Reminder = { task: Task; at: number; title: string; body: string };
+
 /**
  * The reminders to schedule: the coming week's open, timed tasks, soonest
  * first, each `leadMinutes` before its time, never in the past, and never
  * more than the budget left after the nudges. Empty when reminders are off.
+ * While plancy is private (lib/private.ts) a reminder says when, never what.
  */
-export function planReminders(tasks: Task[], settings: Settings, today: string): { task: Task; at: number }[] {
+export function planReminders(tasks: Task[], settings: Settings, today: string): Reminder[] {
   if (!settings.remind) return [];
   const last = addDays(today, HORIZON_DAYS);
   const now = Date.now();
   const lead = settings.leadMinutes * 60_000;
+  const soon = settings.leadMinutes === 0 ? 'Now' : `In ${settings.leadMinutes} min`;
+  const hidden = isPrivate(settings);
   return (
     tasks
       // Anytime tasks have no time to remind at; a task can also opt out.
@@ -144,6 +174,13 @@ export function planReminders(tasks: Task[], settings: Settings, today: string):
       .filter((x) => x.at > now)
       .sort((a, b) => a.at - b.at)
       .slice(0, reminderBudget(settings))
+      .map(({ task, at }) => {
+        const { time, suffix } = splitTime(task.time, settings.hour12);
+        const clock = `${time} ${suffix}`.trim();
+        return hidden
+          ? { task, at, title: `A task is due at ${clock}`, body: soon }
+          : { task, at, title: task.title, body: `${soon}, ${clock}` };
+      })
   );
 }
 

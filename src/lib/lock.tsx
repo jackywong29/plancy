@@ -9,6 +9,8 @@
  *   Finance" and those two tabs are locked the next time you look at them.
  * - One successful Face ID opens everything until plancy leaves the screen.
  *   Going to the background locks again.
+ * - Finance's sheet is locked too: it closes when the lock comes back on, and
+ *   a link that opens it over the lock shows the lock screen in its place.
  * - Weakening the lock (turning it off, or from whole app to two tabs) needs
  *   Face ID if you haven't passed it this session, so an unlocked phone left
  *   on a table can't simply switch it off.
@@ -17,7 +19,8 @@
  *   be turned on at all without a passcode, so nobody gets locked out.
  */
 import * as LocalAuthentication from 'expo-local-authentication';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
+import * as ScreenCapture from 'expo-screen-capture';
 import {
   createContext,
   use,
@@ -81,6 +84,15 @@ export function LockProvider({
   // before plancy is active again.
   const inactiveForAuth = useRef(false);
 
+  // The native cover: iOS blurs plancy's window as it leaves the screen, which
+  // reaches the app-switcher snapshot before any React view could. It sits
+  // under presented sheets, so PrivacyCover stays as well.
+  const enabledNow = useRef(enabled);
+  enabledNow.current = enabled;
+  useEffect(() => {
+    void (enabled ? ScreenCapture.enableAppSwitcherProtectionAsync(1) : ScreenCapture.disableAppSwitcherProtectionAsync()).catch(() => {});
+  }, [enabled]);
+
   useEffect(() => {
     void LocalAuthentication.supportedAuthenticationTypesAsync().then((types) => {
       const T = LocalAuthentication.AuthenticationType;
@@ -112,6 +124,9 @@ export function LockProvider({
     if (authenticating.current) return false;
     authenticating.current = true;
     try {
+      // Face ID's own sheet also takes plancy off the screen; without this
+      // the blur would cover the lock screen behind it.
+      await ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => {});
       const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock plancy', cancelLabel: 'Cancel' });
       if (result.success) {
         haptic('unlocked');
@@ -123,6 +138,7 @@ export function LockProvider({
       return false;
     } finally {
       authenticating.current = false;
+      if (enabledNow.current) void ScreenCapture.enableAppSwitcherProtectionAsync(1).catch(() => {});
     }
   }, []);
 
@@ -216,7 +232,7 @@ export function AppLock({ children }: { children: ReactNode }) {
   return (
     <View style={{ flex: 1 }}>
       {lock.appLocked ? null : children}
-      {lock.appLocked ? <LockScreen title="plancy" message="plancy is locked" full /> : null}
+      {lock.appLocked ? <LockScreen title="plancy" message="plancy is locked" fadeIn /> : null}
     </View>
   );
 }
@@ -227,8 +243,10 @@ export function AppLock({ children }: { children: ReactNode }) {
  * The tab stays mounted underneath the cover. The native tab bar gives its
  * top spacing to the first scroll view it finds when the tab loads, so if the
  * lock screen were drawn instead, the tab would come up under the status bar
- * once unlocked. Hidden from VoiceOver while covered. On unlock the cover
- * fades up and away while the tab settles in from a hair smaller.
+ * once unlocked. Hidden from VoiceOver while covered, and drawn at opacity 0
+ * so nothing shows through while the cover is drawn: the cover appears at
+ * once, with no fade. On unlock the cover lifts away while the tab settles in
+ * from a hair smaller.
  */
 export function PrivateLock({ title, children }: { title: string; children: ReactNode }) {
   const lock = useLock();
@@ -246,7 +264,7 @@ export function PrivateLock({ title, children }: { title: string; children: Reac
   }, [privateLocked, reveal]);
 
   const settle = useAnimatedStyle(() => ({
-    opacity: 0.4 + 0.6 * reveal.value,
+    opacity: reveal.value,
     transform: [{ scale: 0.97 + 0.03 * reveal.value }],
   }));
 
@@ -258,17 +276,57 @@ export function PrivateLock({ title, children }: { title: string; children: Reac
         importantForAccessibility={privateLocked ? 'no-hide-descendants' : 'auto'}>
         {children}
       </Animated.View>
-      {privateLocked ? <LockScreen title={title} message={`${title[0].toUpperCase()}${title.slice(1)} is locked`} full /> : null}
+      {privateLocked ? <LockScreen title={title} message={`${title[0].toUpperCase()}${title.slice(1)} is locked`} /> : null}
     </View>
   );
 }
 
-function LockScreen({ title, message }: { title: string; message: string; full?: boolean }) {
+/**
+ * Stands in for a sheet's contents while Journal and Finance are locked: a
+ * link (`plancy://money`) can open the Finance sheet straight over the lock.
+ * The sheet's form is not mounted underneath, so none of it is drawn or read
+ * out. Asks for Face ID as the sheet opens, as a private tab does.
+ */
+export function SheetLock({ title }: { title: string }) {
+  const { active, resumes, unlock } = useLock();
+  useFocusEffect(
+    useCallback(() => {
+      if (active) void unlock();
+    }, [active, resumes, unlock]),
+  );
+  return <LockScreen title={title} message={`${title[0].toUpperCase()}${title.slice(1)} is locked`} />;
+}
+
+/** The sheets that show Journal or Finance entries, by path. */
+const PRIVATE_SHEETS: readonly string[] = ['/money'];
+
+/**
+ * When Journal and Finance lock again (plancy went to the background, or the
+ * scope changed), closes a Finance sheet left open: native sheets sit above
+ * the tabs' covers. Call from inside the root navigator. The whole-app lock
+ * needs none of this, as it unmounts the navigator.
+ */
+export function useDismissPrivateSheets() {
+  const { privateLocked } = useLock();
+  const pathname = usePathname();
+  const router = useRouter();
+  const was = useRef(privateLocked);
+  useEffect(() => {
+    const relocked = privateLocked && !was.current;
+    was.current = privateLocked;
+    // Only on the moment it locks: a sheet opened by a link while already
+    // locked shows SheetLock instead, so Face ID can let the person through.
+    if (relocked && PRIVATE_SHEETS.includes(pathname)) router.dismissAll();
+  }, [privateLocked, pathname, router]);
+}
+
+/** `fadeIn` only where nothing private sits underneath to show through the fade. */
+function LockScreen({ title, message, fadeIn = false }: { title: string; message: string; fadeIn?: boolean }) {
   const theme = useTheme();
   const lock = useLock();
   return (
     <Animated.View
-      entering={FadeIn.duration(180)}
+      entering={fadeIn ? FadeIn.duration(180) : undefined}
       exiting={LIFT_AWAY}
       style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: theme.ground }]}>
       <View style={[styles.badge, { backgroundColor: theme.accentSoft }]}>

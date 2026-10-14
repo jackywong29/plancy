@@ -1,7 +1,7 @@
 import { addDays } from '@/lib/format';
 
 import { bill, days, series, task } from '../../test/make';
-import { copyId, endSeries, missingBills, missingSeries, seriesFrom, splitSeries, upcomingRepeats } from './repeats';
+import { copyId, emptied, endSeries, missingBills, missingSeries, seriesFrom, splitSeries, upcomingRepeats } from './repeats';
 import type { Series, Task } from './types';
 
 /**
@@ -229,6 +229,35 @@ describe('this and future tasks', () => {
     const change = splitSeries(undefined, [lone], lone, { repeat: 'weekly' }, newId);
     expect(change.series).toEqual([expect.objectContaining({ id: 'lone', start: '2026-09-24', repeat: 'weekly' })]);
     expect(change.task).toMatchObject({ id: 'lone', seriesId: 'lone', repeat: 'weekly' });
+  });
+
+  it('deleting this and future keeps the series record but not its words', () => {
+    const ended = endSeries(week.series[0], week.tasks, sat);
+    expect(ended.series).toMatchObject({ id: 'run', until: '2026-09-25', title: '', notes: '' });
+  });
+
+  it('editing from a later copy keeps the old series’ words for the copies still on it', () => {
+    const change = splitSeries(week.series[0], week.tasks, sat, { title: 'Run 5k' }, newId);
+    expect(change.series[0]).toMatchObject({ id: 'run', until: '2026-09-25', title: 'Run' });
+  });
+
+  it('editing from the first copy leaves the old series no copies, so it is blanked', () => {
+    const change = splitSeries(week.series[0], week.tasks, first, { title: 'Swim' }, newId);
+    expect(change.series[0]).toMatchObject({ id: 'run', until: '2026-09-23', title: '', notes: '' });
+  });
+});
+
+describe('an ended series with no copies left', () => {
+  const s = series({ id: 'a', title: 'Call mum', notes: 'about Sunday', start: '2026-09-20', until: '2026-09-25' });
+
+  it('is blanked, and keeps its id, rule and end', () => {
+    expect(emptied(s, [], 5)).toEqual({ ...s, title: '', notes: '', syncedAt: 5 });
+  });
+
+  it('keeps its words while a copy is left, while it still runs, or once already blank', () => {
+    expect(emptied(s, [task({ seriesId: 'a', date: '2026-09-21' })])).toBeUndefined();
+    expect(emptied({ ...s, until: '' }, [])).toBeUndefined();
+    expect(emptied({ ...s, title: '', notes: '' }, [])).toBeUndefined();
   });
 });
 

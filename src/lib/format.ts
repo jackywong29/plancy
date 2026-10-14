@@ -38,6 +38,33 @@ export function addMonths(month: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/* ---------- link parameters ---------- */
+// A deep link (`plancy://task?date=…`) can carry anything. These let a
+// screen keep only what it could have written itself and fall back otherwise.
+
+/** `YYYY-MM` with a month from 01 to 12, or undefined. */
+export function validMonth(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}$/.test(value)) return undefined;
+  const m = Number(value.slice(5, 7));
+  return m >= 1 && m <= 12 ? value : undefined;
+}
+
+/** `YYYY-MM-DD` naming a day that exists (no 30 February), or undefined. */
+export function validDate(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || !validMonth(value.slice(0, 7))) return undefined;
+  const y = Number(value.slice(0, 4));
+  const m = Number(value.slice(5, 7));
+  const d = Number(value.slice(8, 10));
+  const leap = y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0);
+  const last = m === 2 ? (leap ? 29 : 28) : [4, 6, 9, 11].includes(m) ? 30 : 31;
+  return d >= 1 && d <= last ? value : undefined;
+}
+
+/** `value` if it is one of `allowed`, or undefined. */
+export function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T | undefined {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : undefined;
+}
+
 /** The seven days of the week `iso` falls in, honouring the week-start setting. */
 export function weekOf(iso: string, weekStart: 1 | 7): string[] {
   const d = fromIso(iso);

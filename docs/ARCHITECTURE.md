@@ -262,9 +262,10 @@ Both are local to this Mac and both are already handled.
    adopt it, and the Expo template does not yet. `plugins/with-scene-lifecycle.js`
    adds it on every prebuild. **Delete this plugin once Expo ships it.**
 
-`ios/` is generated and gitignored. `app.config.js` switches on `PLANCY_PHONE`
-to produce a free-Apple-ID build (`com.clancyhq.plancy.dev`, no push
-entitlement, test tools on).
+`ios/` is generated and gitignored. `app.config.js` strips the push
+entitlement from every build (all notifications are local) and switches on
+`PLANCY_PHONE` to produce a free-Apple-ID build (`com.clancyhq.plancy.dev`,
+test tools on).
 
 After installing a package that ships a Babel transform, restart Metro with
 `--clear`: `babel-preset-expo` decides once whether to enable the `'widget'`

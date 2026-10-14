@@ -13,7 +13,7 @@ import { ToastProvider } from '@/components/toast';
 import { StoreProvider, useStore } from '@/data/store';
 import { setHapticsEnabled } from '@/lib/haptics';
 import { refreshLaunchScreenCache } from '@/lib/launch-cache';
-import { AppLock, LockProvider } from '@/lib/lock';
+import { AppLock, LockProvider, useDismissPrivateSheets } from '@/lib/lock';
 import { syncReminders } from '@/lib/reminders';
 import { useWidgetSync } from '@/lib/widget';
 import { ThemeProvider, useTheme } from '@/theme/theme';
@@ -115,6 +115,7 @@ function useNotificationTaps() {
 function Shell() {
   const theme = useTheme();
   useNotificationTaps();
+  useDismissPrivateSheets();
   // The navigation library tells iOS whether each header is light or dark
   // from its own theme, not the phone's. Without this, headers and their
   // glass buttons stay light in a dark plancy.

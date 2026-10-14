@@ -51,9 +51,16 @@ export function CashFlow({
   onSelect: (month: string) => void;
 }) {
   const theme = useTheme();
+  // One pass over the entries, grouped by month.
+  const byMonth = new Map<string, MoneyEntry[]>();
+  for (const e of money) {
+    const list = byMonth.get(e.month);
+    if (list) list.push(e);
+    else byMonth.set(e.month, [e]);
+  }
   const rows: MonthRow[] = Array.from({ length: MONTHS }, (_, i) => {
     const m = addMonths(month, i - (MONTHS - 1));
-    const entries = money.filter((e) => e.month === m);
+    const entries = byMonth.get(m) ?? [];
     const t = monthTotals(entries);
     return { month: m, income: t.income, out: t.spent + t.saving, saving: t.saving, left: t.left, hasData: entries.length > 0 };
   });

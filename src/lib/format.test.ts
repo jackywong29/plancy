@@ -6,9 +6,12 @@ import {
   isoDate,
   minorUnits,
   monthGrid,
+  oneOf,
   parseMoney,
   splitTime,
   todayIso,
+  validDate,
+  validMonth,
   weekdayInitials,
   weekOf,
 } from './format';
@@ -77,6 +80,30 @@ describe('addMonths', () => {
     expect(addMonths('2026-12', 1)).toBe('2027-01');
     expect(addMonths('2026-01', -1)).toBe('2025-12');
     expect(addMonths('2026-09', 12)).toBe('2027-09');
+  });
+});
+
+describe('link parameters', () => {
+  it('keeps real days', () => {
+    for (const d of ['2026-10-14', '2024-02-29', '2000-02-29', '2026-12-31', '2026-04-30']) expect(validDate(d)).toBe(d);
+  });
+
+  it('drops days that do not exist or are not YYYY-MM-DD', () => {
+    for (const d of ['2026-02-29', '1900-02-29', '2026-04-31', '2026-13-01', '2026-00-10', '2026-10-00', '2026-10-32', '2026-1-14', '2026-10-14T00:00', ' 2026-10-14', 'junk', '', '2026-10'])
+      expect(validDate(d)).toBeUndefined();
+    for (const d of [undefined, null, 20261014, ['2026-10-14']]) expect(validDate(d)).toBeUndefined();
+  });
+
+  it('keeps months 01 to 12 and drops the rest', () => {
+    expect(validMonth('2026-01')).toBe('2026-01');
+    expect(validMonth('2026-12')).toBe('2026-12');
+    for (const m of ['2026-00', '2026-13', '2026-1', '2026-10-01', 'junk', '', undefined, ['2026-10']]) expect(validMonth(m)).toBeUndefined();
+  });
+
+  it('keeps only listed values', () => {
+    const kinds = ['bill', 'income'] as const;
+    expect(oneOf('bill', kinds)).toBe('bill');
+    for (const k of ['Bill', 'loan', '', undefined, ['bill']]) expect(oneOf(k, kinds)).toBeUndefined();
   });
 });
 

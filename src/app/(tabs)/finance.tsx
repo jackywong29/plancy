@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BigTitle, Card, Empty, Icon, Row, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
@@ -12,7 +12,7 @@ import { useStore } from '@/data/store';
 import { useAddAction } from '@/lib/add-action';
 import { PrivateLock, useLock } from '@/lib/lock';
 import type { MoneyKind } from '@/data/types';
-import { addMonths, formatMoney, formatMonthLong, isoMonth, todayIso } from '@/lib/format';
+import { addMonths, formatMoney, formatMonthLong, isoMonth } from '@/lib/format';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 const SECTIONS: { kind: MoneyKind; title: string }[] = [
@@ -23,22 +23,32 @@ const SECTIONS: { kind: MoneyKind; title: string }[] = [
 ];
 
 export default function FinanceScreen() {
-  const { money, settings, toggleBillPaid, deleteMoney, restoreMoney, ensureBills } = useStore();
+  const { money, today, settings, toggleBillPaid, deleteMoney, restoreMoney, ensureBills } = useStore();
   const theme = useTheme();
   const router = useRouter();
   const toast = useToast();
   const bigText = useAccessibilitySize();
-  const [month, setMonth] = useState(isoMonth(todayIso()));
+  const thisMonth = isoMonth(today);
+  const [month, setMonth] = useState(thisMonth);
+
+  // The month turned while plancy was open. If it was showing this month, it
+  // moves on with it, as the Today tab does.
+  const shownMonth = useRef(thisMonth);
+  useEffect(() => {
+    if (shownMonth.current === thisMonth) return;
+    if (month === shownMonth.current) setMonth(thisMonth);
+    shownMonth.current = thisMonth;
+  }, [thisMonth, month]);
 
   useEffect(() => {
-    if (month >= isoMonth(todayIso())) ensureBills(month);
-  }, [month, ensureBills]);
+    if (month >= thisMonth) ensureBills(month);
+  }, [month, thisMonth, ensureBills]);
 
   const entries = moneyForMonth(money, month);
   const totals = monthTotals(entries);
   const unpaid = entries.filter((e) => e.kind === 'bill' && !e.paid);
   const unpaidTotal = unpaid.reduce((a, e) => a + e.amountMinor, 0);
-  const today = Number(todayIso().slice(8));
+  const dayToday = Number(today.slice(8));
   const currency = settings.currency;
   const share = (value: number): `${number}%` => `${totals.income > 0 ? Math.max(0, (value / totals.income) * 100) : 0}%`;
 
@@ -201,7 +211,7 @@ export default function FinanceScreen() {
                           entry={entry}
                           first={i === 0}
                           currency={currency}
-                          today={today}
+                          today={dayToday}
                           onEdit={() => router.push({ pathname: '/money', params: { id: entry.id } })}
                           onDelete={() => remove(entry.id)}
                           onTogglePaid={() => {

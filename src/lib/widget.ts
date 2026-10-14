@@ -27,7 +27,7 @@ import TodayWidget, { type TodayWidgetProps } from '../../widgets/TodayWidget';
 const DAYS_AHEAD = 3;
 const MAX_TASKS = 12;
 
-export type TaskDone = { id: string; done: boolean };
+type TaskDone = { id: string; done: boolean };
 
 let queue: Promise<void> = Promise.resolve();
 
@@ -94,10 +94,11 @@ async function reconcile(latest: Latest): Promise<void> {
 
 function write(tasks: Task[], settings: Settings) {
   const today = todayIso();
+  const todayFacts = factsFor(tasks, today);
   const entries = [];
   for (let i = 0; i <= DAYS_AHEAD; i += 1) {
     const day = addDays(today, i);
-    entries.push({ date: i === 0 ? new Date() : fromIso(day), props: propsFor(tasks, settings, day, today) });
+    entries.push({ date: i === 0 ? new Date() : fromIso(day), props: propsFor(tasks, settings, day, today, todayFacts) });
   }
   try {
     TodayWidget.updateTimeline(entries);
@@ -106,23 +107,39 @@ function write(tasks: Task[], settings: Settings) {
   }
 }
 
+type TodayFacts = { todayDone: boolean; streak: number };
+
+/** What every day's entry needs to know about today; worked out once per write. */
+function factsFor(tasks: Task[], today: string): TodayFacts {
+  const todayList = tasksForDay(tasks, today);
+  return { todayDone: todayList.length > 0 && todayList.every((t) => t.done), streak: streak(tasks, today) };
+}
+
 /** What the widget is sent for `day`. Exported for the widget tests. */
-export function propsFor(tasks: Task[], settings: Settings, day: string, today: string): TodayWidgetProps {
+export function propsFor(
+  tasks: Task[],
+  settings: Settings,
+  day: string,
+  today: string,
+  { todayDone, streak: current }: TodayFacts = factsFor(tasks, today),
+): TodayWidgetProps {
+  // The whole-app lock means nothing leaves the app unlocked, including
+  // task names on the Lock Screen and home screen widgets, so they aren't
+  // even sent.
+  const hidden = settings.lockEnabled && settings.lockScope === 'app';
   // A later day shows today's leftovers already moved in, as plancy will
   // when it next opens (iOS doesn't wake it at midnight to do it then).
   const list = tasksForDay(asOf(tasks, day, settings), day);
   // Open tasks first, then finished ones, each in time order.
   const ordered = [...list.filter((t) => !t.done), ...list.filter((t) => t.done)].slice(0, MAX_TASKS);
-  const todayList = tasksForDay(tasks, today);
-  const todayDone = todayList.length > 0 && todayList.every((t) => t.done);
-  const current = streak(tasks, today);
   return {
     date: day,
     day: formatDayShort(day).replace(/,/g, ''),
     tasks: ordered.map((t) => {
-      if (t.time === '') return { id: t.id, time: '', title: t.title, done: t.done };
+      const title = hidden ? '' : t.title;
+      if (t.time === '') return { id: t.id, time: '', title, done: t.done };
       const { time, suffix } = splitTime(t.time, settings.hour12);
-      return { id: t.id, time: `${time}${suffix ? ` ${suffix}` : ''}`, title: t.title, done: t.done };
+      return { id: t.id, time: `${time}${suffix ? ` ${suffix}` : ''}`, title, done: t.done };
     }),
     // For today the widget adds one itself once everything is ticked. Later
     // days can only know the streak as it stands now.
@@ -132,8 +149,6 @@ export function propsFor(tasks: Task[], settings: Settings, day: string, today: 
     // accent is the fair middle ground.
     accent: accentFor(settings.accent, 'light'),
     touched: [],
-    // The whole-app lock means nothing leaves the app unlocked, including
-    // task names on the Lock Screen and home screen widgets.
-    private: settings.lockEnabled && settings.lockScope === 'app',
+    private: hidden,
   };
 }

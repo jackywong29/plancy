@@ -18,8 +18,8 @@ export function tasksForDay(tasks: Task[], date: string): Task[] {
  * Tasks planned and finished, per day. A task carried over from a day still
  * counts there, unfinished (see data/carry.ts).
  */
-export function countsByDate(tasks: Task[]): Map<string, { total: number; done: number }> {
-  const map = new Map<string, { total: number; done: number }>();
+export function countsByDate(tasks: Task[]): DayCounts {
+  const map: DayCounts = new Map();
   const entry = (date: string) => {
     let e = map.get(date);
     if (!e) map.set(date, (e = { total: 0, done: 0 }));
@@ -39,9 +39,23 @@ export function movedOn(tasks: Task[], date: string): Task[] {
   return tasks.filter((t) => t.carriedFrom.includes(date));
 }
 
+export type DayCounts = Map<string, { total: number; done: number }>;
+
+/** `counts` as they stand once one more task on `date` is ticked. */
+export function withTicked(counts: DayCounts, date: string): DayCounts {
+  const next = new Map(counts);
+  const e = counts.get(date);
+  if (e) next.set(date, { total: e.total, done: e.done + 1 });
+  return next;
+}
+
 /** Days in a row, ending today, where everything planned was done. */
 export function streak(tasks: Task[], today: string): number {
-  const counts = countsByDate(tasks);
+  return streakFrom(countsByDate(tasks), today);
+}
+
+/** `streak`, from counts already worked out by `countsByDate`. */
+export function streakFrom(counts: DayCounts, today: string): number {
   let day = today;
   let days = 0;
   // Today only counts once it is actually finished; an unfinished today must
@@ -62,11 +76,8 @@ export function moneyForMonth(money: MoneyEntry[], month: string): MoneyEntry[] 
 }
 
 export function monthTotals(entries: MoneyEntry[]) {
-  const sum = (kind: MoneyEntry['kind']) =>
-    entries.filter((e) => e.kind === kind).reduce((acc, e) => acc + e.amountMinor, 0);
-  const income = sum('income');
-  const saving = sum('saving');
-  const spending = sum('spending');
-  const bills = sum('bill');
+  const sum: Record<MoneyEntry['kind'], number> = { income: 0, saving: 0, spending: 0, bill: 0 };
+  for (const e of entries) sum[e.kind] += e.amountMinor;
+  const { income, saving, spending, bill: bills } = sum;
   return { income, saving, spending, bills, spent: spending + bills, left: income - saving - spending - bills };
 }

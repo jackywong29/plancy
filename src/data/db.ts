@@ -91,48 +91,76 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `;
 
+/**
+ * Brings an older database up to SCHEMA. Each step runs once, counted by
+ * `user_version`; a new column means a new step and a higher version.
+ */
 export function migrate(): void {
-  db.execSync('PRAGMA journal_mode = WAL;');
+  // Per connection, so every launch: deleted rows are overwritten, not left in free pages.
+  db.execSync('PRAGMA journal_mode = WAL; PRAGMA secure_delete = ON;');
   db.execSync(SCHEMA);
-  // Columns added after the first build. SQLite has no ADD COLUMN IF NOT EXISTS.
-  for (const table of ['tasks', 'money']) {
-    const cols = db.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
-    if (!cols.includes('seriesId')) db.execSync(`ALTER TABLE ${table} ADD COLUMN seriesId TEXT NOT NULL DEFAULT ''`);
-  }
-  const taskCols = db.getAllSync<{ name: string }>('PRAGMA table_info(tasks)').map((c) => c.name);
-  if (!taskCols.includes('notes')) db.execSync("ALTER TABLE tasks ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
-  if (!taskCols.includes('position')) db.execSync('ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
-  // Tasks from before the per-task switch were all reminded (it followed the
-  // global setting), so they keep that.
-  if (!taskCols.includes('remind')) db.execSync('ALTER TABLE tasks ADD COLUMN remind INTEGER NOT NULL DEFAULT 1');
-  if (!taskCols.includes('carriedFrom')) db.execSync("ALTER TABLE tasks ADD COLUMN carriedFrom TEXT NOT NULL DEFAULT ''");
-  const ideaCols = db.getAllSync<{ name: string }>('PRAGMA table_info(ideas)').map((c) => c.name);
-  if (!ideaCols.includes('done')) db.execSync('ALTER TABLE ideas ADD COLUMN done INTEGER NOT NULL DEFAULT 0');
-  // Rows from before series existed: repeating tasks that look alike become one
-  // series, otherwise each of them would spawn its own copies.
-  db.execSync(`
-    UPDATE tasks SET seriesId = (
-      SELECT MIN(o.id) FROM tasks o WHERE o.title = tasks.title AND o.time = tasks.time AND o.repeat = tasks.repeat
-    ) WHERE seriesId = '' AND repeat != '';
-    UPDATE tasks SET seriesId = id WHERE seriesId = '';
-    UPDATE money SET seriesId = (
-      SELECT MIN(o.id) FROM money o WHERE o.label = money.label AND o.kind = money.kind
-    ) WHERE seriesId = '' AND repeatMonthly = 1;
-    UPDATE money SET seriesId = id WHERE seriesId = '';
-  `);
   const { user_version: version } = db.getFirstSync<{ user_version: number }>('PRAGMA user_version') ?? { user_version: 0 };
-  if (version < 1) {
-    // Copies of repeating tasks made before series existed had random ids.
-    // They take the ids a series gives its copies now (seriesId@date), so a
-    // copy deleted from here on stays deleted. The first copy keeps its id,
-    // which is already the series id. OR IGNORE skips the odd duplicate
-    // copy on one day, which keeps its old id and does no harm.
+  if (version >= 2) return;
+  db.withTransactionSync(() => {
+    // Columns added after the first build. SQLite has no ADD COLUMN IF NOT EXISTS.
+    const columns = (table: string) => db.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
+    const taskCols = columns('tasks');
+    if (!taskCols.includes('seriesId')) db.execSync("ALTER TABLE tasks ADD COLUMN seriesId TEXT NOT NULL DEFAULT ''");
+    if (!columns('money').includes('seriesId')) db.execSync("ALTER TABLE money ADD COLUMN seriesId TEXT NOT NULL DEFAULT ''");
+    if (!taskCols.includes('notes')) db.execSync("ALTER TABLE tasks ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+    if (!taskCols.includes('position')) db.execSync('ALTER TABLE tasks ADD COLUMN position INTEGER NOT NULL DEFAULT 0');
+    // Tasks from before the per-task switch were all reminded (it followed the
+    // global setting), so they keep that.
+    if (!taskCols.includes('remind')) db.execSync('ALTER TABLE tasks ADD COLUMN remind INTEGER NOT NULL DEFAULT 1');
+    if (!taskCols.includes('carriedFrom')) db.execSync("ALTER TABLE tasks ADD COLUMN carriedFrom TEXT NOT NULL DEFAULT ''");
+    if (!columns('ideas').includes('done')) db.execSync('ALTER TABLE ideas ADD COLUMN done INTEGER NOT NULL DEFAULT 0');
+    // Rows from before series existed: repeating tasks that look alike become one
+    // series, otherwise each of them would spawn its own copies.
     db.execSync(`
-      UPDATE OR IGNORE tasks SET id = seriesId || '@' || date
-        WHERE repeat != '' AND id != seriesId AND instr(id, '@') = 0;
-      PRAGMA user_version = 1;
+      UPDATE tasks SET seriesId = (
+        SELECT MIN(o.id) FROM tasks o WHERE o.title = tasks.title AND o.time = tasks.time AND o.repeat = tasks.repeat
+      ) WHERE seriesId = '' AND repeat != '';
+      UPDATE tasks SET seriesId = id WHERE seriesId = '';
+      UPDATE money SET seriesId = (
+        SELECT MIN(o.id) FROM money o WHERE o.label = money.label AND o.kind = money.kind
+      ) WHERE seriesId = '' AND repeatMonthly = 1;
+      UPDATE money SET seriesId = id WHERE seriesId = '';
     `);
+    if (version < 1) {
+      // Copies of repeating tasks made before series existed had random ids.
+      // They take the ids a series gives its copies now (seriesId@date), so a
+      // copy deleted from here on stays deleted. The first copy keeps its id,
+      // which is already the series id. OR IGNORE skips the odd duplicate
+      // copy on one day, which keeps its old id and does no harm.
+      db.execSync(`
+        UPDATE OR IGNORE tasks SET id = seriesId || '@' || date
+          WHERE repeat != '' AND id != seriesId AND instr(id, '@') = 0;
+      `);
+    }
+    // Version 2: the columns and series backfill above, once rather than every launch.
+    db.execSync('PRAGMA user_version = 2;');
+  });
+}
+
+let depth = 0;
+
+/**
+ * Runs `writes` as one transaction (one commit, all or nothing) and returns
+ * what it returns. Nests — inside another batch it just joins it — because
+ * `withTransactionSync` can't.
+ */
+export function batch<T>(writes: () => T): T {
+  if (depth > 0) return writes();
+  let out!: T;
+  depth += 1;
+  try {
+    db.withTransactionSync(() => {
+      out = writes();
+    });
+  } finally {
+    depth -= 1;
   }
+  return out;
 }
 
 export function uid(): string {
@@ -285,9 +313,12 @@ export function saveMoney(m: MoneyEntry): void {
   );
 }
 
+/** Deletes a record and writes its tombstone, together: a crash can't leave one without the other. */
 export function removeRecord(kind: 'tasks' | 'series' | 'journal' | 'ideas' | 'money', id: string): void {
-  db.runSync(`DELETE FROM ${kind} WHERE id = ?`, [id]);
-  db.runSync('INSERT OR REPLACE INTO tombstones (id, kind, deletedAt) VALUES (?, ?, ?)', [id, kind, Date.now()]);
+  batch(() => {
+    db.runSync(`DELETE FROM ${kind} WHERE id = ?`, [id]);
+    db.runSync('INSERT OR REPLACE INTO tombstones (id, kind, deletedAt) VALUES (?, ?, ?)', [id, kind, Date.now()]);
+  });
 }
 
 /** Undo: bring a record back and drop the tombstone that would out-vote it in a sync merge. */
@@ -298,13 +329,18 @@ export function forgetTombstone(id: string): void {
 /**
  * Deletes every task, series, journal entry, idea and finance entry, each with its
  * tombstone like any other delete. Settings stay. Test builds only.
+ *
+ * Then the deleted text is scrubbed from the files too: the WAL is folded in
+ * and emptied, VACUUM rebuilds the database without its free pages, and the
+ * WAL that VACUUM wrote is emptied again. VACUUM can't run in a transaction.
  */
 export function eraseAll(): void {
-  db.withTransactionSync(() => {
+  batch(() => {
     for (const kind of ['tasks', 'series', 'journal', 'ideas', 'money'] as const) {
       for (const { id } of db.getAllSync<{ id: string }>(`SELECT id FROM ${kind}`)) removeRecord(kind, id);
     }
   });
+  db.execSync('PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);');
 }
 
 /* ---------- settings ---------- */

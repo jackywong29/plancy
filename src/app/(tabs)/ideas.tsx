@@ -26,9 +26,15 @@ export default function IdeasScreen() {
   // then glides down to the done ones (the layout animation below).
   const { hold, placedDone } = useSettle();
 
-  const tags = [...new Set(ideas.map((i) => i.tag).filter(Boolean))].sort();
-  const starred = ideas.filter((i) => i.starred).length;
-  const done = ideas.filter((i) => i.done).length;
+  const tagSet = new Set<string>();
+  let starred = 0;
+  let done = 0;
+  for (const i of ideas) {
+    if (i.tag) tagSet.add(i.tag);
+    if (i.starred) starred += 1;
+    if (i.done) done += 1;
+  }
+  const tags = [...tagSet].sort();
   const visible = ideas
     .filter((i) => (filter === 'all' ? true : filter === 'starred' ? i.starred : filter === 'done' ? placedDone(i) : i.tag === filter))
     // Open ideas first, done ones sink to the bottom; within each, starred on top, then newest.

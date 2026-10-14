@@ -17,6 +17,13 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+*.cer
+
+# Build output and signing artefacts
+*.ipa
+*.xcarchive
+*.dSYM
+*.dSYM.zip
 
 # Metro
 .metro-health-check*
@@ -31,6 +38,8 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.local
 .env*.local
 
 # typescript

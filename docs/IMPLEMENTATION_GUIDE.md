@@ -42,8 +42,9 @@ In this order, and none of it needs Apple:
    It needs a migration, so it is much cheaper now than after launch.
 4. **Import from the web planner**, into Settings rather than onboarding.
 5. **Extract UI strings** (week 5).
-6. **The two open security findings** (`RELEASE_SPEC` §4b.1–2) — the Face ID
-   lock reaching the widget and notifications. Product decisions, not bugs.
+6. ~~**The two open security findings**~~ (`RELEASE_SPEC` §4b.1–2): done.
+   Under the whole-app lock, neither the widget nor notifications show task
+   names (widget 24 Sep, notifications 14 Oct).
 
 ### Small things still owed from week 1.4
 

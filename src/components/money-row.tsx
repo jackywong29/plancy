@@ -21,16 +21,16 @@ import { Tick } from './ui';
  * colouring those red would leave the screen permanently alarmed and make red
  * mean nothing. Red is kept for a bill that is actually late.
  */
-export function amountColour(kind: MoneyKind, paid: boolean, theme: Theme): string {
-  if (kind === 'income' || kind === 'saving') return theme.good;
+function amountColour(kind: MoneyKind, paid: boolean, theme: Theme): string {
+  if (isMoneyIn(kind)) return theme.good;
   if (kind === 'bill' && paid) return theme.ink3;
   return theme.ink;
 }
 
-export const isMoneyIn = (kind: MoneyKind): boolean => kind === 'income' || kind === 'saving';
+const isMoneyIn = (kind: MoneyKind): boolean => kind === 'income' || kind === 'saving';
 
 /** "Due in 3 days", "Overdue by 2 days", "Paid" — a bill's second line. */
-export function dueLabel(entry: MoneyEntry, today: number): string {
+function dueLabel(entry: MoneyEntry, today: number): string {
   if (entry.paid) return 'Paid';
   if (entry.dueDay === null) return '';
   const days = entry.dueDay - today;

@@ -12,11 +12,11 @@
  *   deleted and then written straight back.
  *
  * - `NSAllowsLocalNetworking` is Expo's, and it is how the app is allowed to
- *   reach Metro over cleartext while you're developing. It only goes in a
- *   store build, because removing it everywhere would break `expo run:ios`.
- *   Set PLANCY_STORE=1 for the build you upload; the plugin says which mode
- *   it ran in, so a missed flag is visible in the prebuild output rather than
- *   discovered in the archive.
+ *   reach Metro over cleartext while you're developing. It is removed by
+ *   default, so a store build can't ship it by someone forgetting a flag. It
+ *   is kept only for a development build (PLANCY_DEV=1, which `npm run ios`
+ *   sets) or a phone build (PLANCY_PHONE, set by install-on-iphone.sh). The
+ *   plugin says which mode it ran in, so the prebuild output shows it.
  */
 const { withInfoPlist } = require('expo/config-plugins');
 
@@ -25,15 +25,15 @@ function withStoreHygiene(config) {
     delete c.modResults.NSSupportsLiveActivities;
     delete c.modResults.NSSupportsLiveActivitiesFrequentUpdates;
 
-    const store = process.env.PLANCY_STORE === '1';
+    const dev = process.env.PLANCY_DEV === '1' || Boolean(process.env.PLANCY_PHONE);
     const ats = c.modResults.NSAppTransportSecurity;
-    if (store && ats && typeof ats === 'object') {
+    if (!dev && ats && typeof ats === 'object') {
       delete ats.NSAllowsLocalNetworking;
     }
     console.log(
-      store
-        ? '  with-store-hygiene: store build — local networking removed.'
-        : '  with-store-hygiene: development build — local networking kept for Metro. Set PLANCY_STORE=1 for the App Store build.',
+      dev
+        ? '  with-store-hygiene: development/phone build — local networking kept for Metro.'
+        : '  with-store-hygiene: local networking removed. Set PLANCY_DEV=1 (npm run ios does) to reach Metro.',
     );
     return c;
   });

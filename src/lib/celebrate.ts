@@ -9,7 +9,7 @@
  * Each moment is celebrated once per session, so unticking and ticking again
  * doesn't replay it. Pure, so the rules are easy to check.
  */
-import { countsByDate, streak } from '@/data/select';
+import { countsByDate, streakFrom, type DayCounts } from '@/data/select';
 import type { Task } from '@/data/types';
 import { formatMonthLong, isoMonth } from '@/lib/format';
 
@@ -45,14 +45,18 @@ function milestoneCopy(days: number): string {
  * celebrated this session.
  */
 export function celebrationFor(tasks: Task[], date: string, today: string, seen: Set<string>): Celebration | null {
-  const counts = countsByDate(tasks);
+  return celebrationFrom(countsByDate(tasks), date, today, seen);
+}
+
+/** `celebrationFor`, from counts (after the tick) already worked out by `countsByDate`. */
+export function celebrationFrom(counts: DayCounts, date: string, today: string, seen: Set<string>): Celebration | null {
   const day = counts.get(date);
   if (!day || day.total === 0 || day.done < day.total) return null;
 
   // Everything this tick earned, rarest first.
   const earned: Celebration[] = [];
   if (date === today) {
-    const days = streak(tasks, today);
+    const days = streakFrom(counts, today);
     if (MILESTONES.includes(days)) {
       earned.push({ kind: 'milestone', key: `streak:${days}:${today}`, days, title: `${days}-day streak`, body: milestoneCopy(days) });
     }

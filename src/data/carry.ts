@@ -30,7 +30,13 @@ export function carryOver(tasks: Task[], today: string, since: string): Task[] {
   if (moving.length === 0) return [];
 
   // Oldest day first, each day in its own order, all above what's already there.
-  const ordered = [...new Set(moving.map((t) => t.date))].sort().flatMap((date) => dayOrder(moving.filter((t) => t.date === date)));
+  const byDate = new Map<string, Task[]>();
+  for (const t of moving) {
+    const day = byDate.get(t.date);
+    if (day) day.push(t);
+    else byDate.set(t.date, [t]);
+  }
+  const ordered = [...byDate.keys()].sort().flatMap((date) => dayOrder(byDate.get(date)!));
   const already = tasks.filter((t) => t.date === today && isAnytime(t)).map((t) => t.position);
   const top = already.length > 0 ? Math.min(...already) : 0;
   const now = Date.now();

@@ -32,10 +32,13 @@ const TARGET = 'ExpoWidgetsTarget';
 const FILE = 'PrivacyInfo.xcprivacy';
 
 /**
- * CA92.1 is "access user defaults to read and write information that is only
- * accessible to the app itself and its app group" — exactly what the widget
- * does. Nothing else in the extension touches a required-reason API, so
- * nothing else is declared: an over-broad manifest is its own kind of wrong.
+ * 1C8F.1 is "access user defaults to read and write information that is only
+ * accessible to the apps, app extensions, and App Clips that are members of
+ * the same App Group as the app itself" — exactly what the widget does: it
+ * reads the App Group defaults the app writes. CA92.1 covers only defaults
+ * the bundle itself owns, so it is the wrong reason here. Nothing else in the
+ * extension touches a required-reason API, so nothing else is declared: an
+ * over-broad manifest is its own kind of wrong.
  */
 const MANIFEST = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -48,7 +51,7 @@ const MANIFEST = `<?xml version="1.0" encoding="UTF-8"?>
 \t\t\t<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
 \t\t\t<key>NSPrivacyAccessedAPITypeReasons</key>
 \t\t\t<array>
-\t\t\t\t<string>CA92.1</string>
+\t\t\t\t<string>1C8F.1</string>
 \t\t\t</array>
 \t\t</dict>
 \t</array>

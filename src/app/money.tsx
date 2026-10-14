@@ -1,10 +1,14 @@
 /**
  * A finance entry: income, savings, spending or a bill.
  *
- * `?kind=bill&month=YYYY-MM` opens a new one; `?id=...` opens an existing one
+ * `?kind=bill&month=YYYY-MM` opens a new one (a bad kind or month from a link
+ * falls back to spending this month); `?id=...` opens an existing one
  * for editing, which is the same form with its fields filled in and Save in
  * place of Add. An entry's month never changes here — move it by deleting and
  * adding, which is rare enough not to earn a control.
+ *
+ * While Journal and Finance are locked, the sheet shows the lock screen and
+ * nothing of the entry, not even its name in the title.
  */
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -13,8 +17,9 @@ import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from
 import { Card, Row, SectionHead, Segmented } from '@/components/ui';
 import { useStore } from '@/data/store';
 import type { MoneyKind } from '@/data/types';
-import { formatAmount, formatMonthLong, isoMonth, todayIso } from '@/lib/format';
+import { formatAmount, formatMonthLong, isoMonth, oneOf, validMonth } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { SheetLock, useLock } from '@/lib/lock';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 const KINDS: { value: MoneyKind; label: string }[] = [
@@ -25,14 +30,39 @@ const KINDS: { value: MoneyKind; label: string }[] = [
 ];
 
 export default function MoneySheet() {
-  const params = useLocalSearchParams<{ kind?: MoneyKind; month?: string; id?: string }>();
+  const { privateLocked } = useLock();
+  // The form mounts only once unlocked, so it starts from the entry itself.
+  return privateLocked ? <LockedSheet /> : <MoneyForm />;
+}
+
+function LockedSheet() {
   const router = useRouter();
   const theme = useTheme();
-  const { settings, money, addMoney, editMoney } = useStore();
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.ground }}>
+      <Stack.Screen
+        options={{
+          title: 'Finance',
+          unstable_headerLeftItems: () => [
+            { type: 'button', label: 'Cancel', icon: { type: 'sfSymbol', name: 'xmark' }, onPress: () => router.back() },
+          ],
+          unstable_headerRightItems: () => [],
+        }}
+      />
+      <SheetLock title="finance" />
+    </View>
+  );
+}
+
+function MoneyForm() {
+  const params = useLocalSearchParams<{ kind?: string; month?: string; id?: string }>();
+  const router = useRouter();
+  const theme = useTheme();
+  const { settings, money, today, addMoney, editMoney } = useStore();
 
   const editing = params.id ? money.find((m) => m.id === params.id) : undefined;
-  const month = editing?.month ?? params.month ?? isoMonth(todayIso());
-  const [kind, setKind] = useState<MoneyKind>(editing?.kind ?? params.kind ?? 'spending');
+  const month = editing?.month ?? validMonth(params.month) ?? isoMonth(today);
+  const [kind, setKind] = useState<MoneyKind>(() => editing?.kind ?? oneOf(params.kind, KINDS.map((k) => k.value)) ?? 'spending');
   const [label, setLabel] = useState(editing?.label ?? '');
   const [minor, setMinor] = useState(editing?.amountMinor ?? 0);
   const [dueDay, setDueDay] = useState(editing?.dueDay === null || editing?.dueDay === undefined ? '' : String(editing.dueDay));

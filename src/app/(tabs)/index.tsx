@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn,
@@ -22,12 +22,12 @@ import { moveActions, Sortable, type SortableRef } from '@/components/sortable';
 import { TaskRow } from '@/components/task-row';
 import { useToast } from '@/components/toast';
 import { BigTitle, Card, Empty, Icon, RoundButton, Screen, SectionHead, useAccessibilitySize } from '@/components/ui';
-import { anytimeOrder, isAnytime } from '@/data/order';
-import { countsByDate, movedOn, streak, tasksForDay } from '@/data/select';
+import { anytimeOrder, dayOrder, isAnytime } from '@/data/order';
+import { countsByDate, movedOn, streakFrom, withTicked } from '@/data/select';
 import { useStore, type Scope } from '@/data/store';
 import type { Task } from '@/data/types';
 import { useAddAction } from '@/lib/add-action';
-import { celebrationFor } from '@/lib/celebrate';
+import { celebrationFrom } from '@/lib/celebrate';
 import { addDays, addMonths, formatDayLong, formatDayShort, isoMonth } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { useSettle } from '@/lib/settle';
@@ -68,11 +68,12 @@ export default function TodayScreen() {
   }, [day, month, settings.calendar, ensureRepeats]);
 
   const dayTasks = tasks.filter((t) => t.date === day);
+  const dayAnytime = dayTasks.filter(isAnytime);
   // Timed tasks follow the clock. Anytime ones follow the order they're
   // dragged into, open above finished; a just-ticked one waits a moment in
   // its old place (useSettle) before it glides to the new one.
-  const timedList = tasksForDay(tasks, day).filter((t) => !isAnytime(t));
-  const anytimeList = anytimeOrder(dayTasks.filter(isAnytime), placedDone);
+  const timedList = dayOrder(dayTasks).filter((t) => !isAnytime(t));
+  const anytimeList = anytimeOrder(dayAnytime, placedDone);
   const openAnytime = anytimeList.filter((t) => !placedDone(t));
   const openIds = openAnytime.map((t) => t.id);
   const list = [...timedList, ...anytimeList];
@@ -82,12 +83,13 @@ export default function TodayScreen() {
   const total = list.length + moved.length;
   const done = list.filter((t) => t.done).length;
   const allDone = total > 0 && done === total;
-  const counts = countsByDate(tasks);
-  const days = streak(tasks, today);
+  const counts = useMemo(() => countsByDate(tasks), [tasks]);
+  const days = useMemo(() => streakFrom(counts, today), [counts, today]);
 
   // What the glide needs when a held row's moment is up, as of the latest draw.
-  const latest = useRef({ anytime: dayTasks.filter(isAnytime), shown: anytimeList.map((t) => t.id), placedDone });
-  latest.current = { anytime: dayTasks.filter(isAnytime), shown: anytimeList.map((t) => t.id), placedDone };
+  const shown = anytimeList.map((t) => t.id);
+  const latest = useRef({ anytime: dayAnytime, shown, placedDone });
+  latest.current = { anytime: dayAnytime, shown, placedDone };
 
   /** A held anytime row's moment is up: slide it to where it belongs, then let go. */
   function settle(id: string) {
@@ -117,8 +119,7 @@ export default function TodayScreen() {
       haptic('untick');
       return;
     }
-    const after = tasks.map((t) => (t.id === task.id ? { ...t, done: true } : t));
-    const moment = celebrationFor(after, task.date, today, seen.current);
+    const moment = celebrationFrom(withTicked(counts, task.date), task.date, today, seen.current);
     if (!moment) {
       haptic('tick');
       return;

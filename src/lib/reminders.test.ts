@@ -13,6 +13,12 @@ const mockCentre = {
   granted: true,
   asked: 0,
   buttons: [] as string[],
+  /** How many times delivered notifications were cleared from Notification Center. */
+  dismissed: 0,
+  /** How many reschedules have run (each starts by listing what's scheduled). */
+  runs: 0,
+  /** Called as a reschedule starts, so a test can change things mid-run. */
+  onRun: null as null | (() => void),
 };
 
 jest.mock('expo-notifications', () => ({
@@ -22,7 +28,14 @@ jest.mock('expo-notifications', () => ({
     mockCentre.asked += 1;
     return { granted: mockCentre.granted, canAskAgain: true };
   },
-  getAllScheduledNotificationsAsync: async () => [...mockCentre.scheduled.values()],
+  getAllScheduledNotificationsAsync: async () => {
+    mockCentre.runs += 1;
+    mockCentre.onRun?.();
+    return [...mockCentre.scheduled.values()];
+  },
+  dismissAllNotificationsAsync: async () => {
+    mockCentre.dismissed += 1;
+  },
   cancelScheduledNotificationAsync: async (id: string) => {
     mockCentre.scheduled.delete(id);
   },
@@ -47,6 +60,7 @@ beforeEach(() => {
   mockCentre.scheduled.clear();
   mockCentre.granted = true;
   mockCentre.asked = 0;
+  mockCentre.onRun = null;
   at(5);
 });
 
@@ -170,6 +184,85 @@ describe('what a reminder says', () => {
     expect(await reminderFor('10:30', { leadMinutes: 10 })).toMatchObject({ title: 'Call the contractor', body: 'In 10 min, 10:30 am' });
     expect((await reminderFor('10:30', { leadMinutes: 0 })).body).toBe('Now, 10:30 am');
     expect((await reminderFor('14:30', { leadMinutes: 10, hour12: false })).body).toBe('In 10 min, 14:30');
+  });
+});
+
+/*
+ * RELEASE_SPEC 4b.2: with the whole-app lock on, nothing on the Lock Screen
+ * or in Notification Center names a task.
+ */
+describe('while the whole app is locked', () => {
+  const locked = { lockEnabled: true, lockScope: 'app' } as const;
+
+  it('a reminder says when, never what', async () => {
+    await syncReminders([task({ id: 'r', time: '10:30', title: 'Call the contractor' })], settings({ ...locked, leadMinutes: 10 }));
+    expect(mockCentre.scheduled.get('r')!.content).toMatchObject({ title: 'A task is due at 10:30 am', body: 'In 10 min' });
+    const [now] = planReminders([task({ time: '14:30' })], settings({ ...locked, leadMinutes: 0, hour12: false }), TODAY);
+    expect(now).toMatchObject({ title: 'A task is due at 14:30', body: 'Now' });
+  });
+
+  it('the Journal & Finance lock still names the task', () => {
+    const [plan] = planReminders([task({ time: '10:30', title: 'Call the contractor' })], settings({ lockEnabled: true, lockScope: 'private' }), TODAY);
+    expect(plan.title).toBe('Call the contractor');
+  });
+
+  it('the morning nudge counts the day but names nothing', () => {
+    const tasks = ['07:00', '08:00', '', '12:00', '18:00'].map((time, i) => task({ time, title: `T${i}`, position: i }));
+    const nudge = composeNudge(tasks, settings(locked), TODAY);
+    expect(nudge.subtitle).toBe('5 planned, first at 7:00 am');
+    expect(nudge.body).toBe('Open plancy to see all 5.');
+    expect(composeNudge([task({ title: 'T0' })], settings(locked), TODAY).body).toBe('Open plancy to see it.');
+  });
+
+  it('the evening check-in counts what is left but names nothing', () => {
+    const tasks = [task({ title: 'T0' }), task({ title: 'T1', position: 1 })];
+    expect(composeEvening(tasks, settings(locked), TODAY)).toEqual({
+      title: '2 left today',
+      subtitle: 'Still time to tick one off.',
+      body: 'Open plancy to see all 2.',
+    });
+  });
+
+  it('nothing scheduled carries a task name', async () => {
+    const tasks = [task({ id: 'r', time: '10:30', title: 'Secret plan' }), task({ id: 'a', time: '', title: 'Secret errand', position: 1 })];
+    await syncReminders(tasks, settings({ ...locked, nudge: true, evening: true }));
+    expect(ids()).toEqual(expect.arrayContaining(['r', `nudge-${TODAY}`, `evening-${TODAY}`]));
+    for (const request of mockCentre.scheduled.values()) expect(JSON.stringify(request)).not.toContain('Secret');
+  });
+
+  it('clears what was already delivered when the lock turns on, once', async () => {
+    await syncReminders([], settings());
+    const before = mockCentre.dismissed;
+    await syncReminders([], settings(locked));
+    expect(mockCentre.dismissed).toBe(before + 1);
+    await syncReminders([], settings(locked));
+    expect(mockCentre.dismissed).toBe(before + 1);
+    // From the Journal & Finance lock to the whole app counts too.
+    await syncReminders([], settings({ lockEnabled: true, lockScope: 'private' }));
+    await syncReminders([], settings(locked));
+    expect(mockCentre.dismissed).toBe(before + 2);
+  });
+});
+
+describe('rescheduling', () => {
+  it('folds quick changes into one run with the newest one', async () => {
+    const before = mockCentre.runs;
+    await Promise.all([1, 2, 3, 4, 5].map((n) => syncReminders([task({ id: 'r', time: '10:30', title: `Edit ${n}` })], settings())));
+    expect(mockCentre.runs - before).toBe(1);
+    expect(mockCentre.scheduled.get('r')!.content.title).toBe('Edit 5');
+  });
+
+  it('a change made during a run gets a run of its own afterwards', async () => {
+    const before = mockCentre.runs;
+    let after: Promise<void> | null = null;
+    mockCentre.onRun = () => {
+      mockCentre.onRun = null;
+      after = syncReminders([task({ id: 'r', time: '10:30', title: 'After' })], settings());
+    };
+    await syncReminders([task({ id: 'r', time: '10:30', title: 'Before' })], settings());
+    await after;
+    expect(mockCentre.runs - before).toBe(2);
+    expect(mockCentre.scheduled.get('r')!.content.title).toBe('After');
   });
 });
 

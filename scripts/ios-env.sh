@@ -4,9 +4,9 @@
 # The Mac's system Ruby (2.6) is too old for CocoaPods and Homebrew cannot
 # build a newer one on this macOS without updated Command Line Tools, so
 # CocoaPods was installed into a private folder using the Ruby that Homebrew
-# ships for itself. Source this file before `npx expo run:ios`:
+# ships for itself. Source this file before `npm run ios`:
 #
-#   . scripts/ios-env.sh && npx expo run:ios
+#   . scripts/ios-env.sh && npm run ios
 #
 # Once Command Line Tools for Xcode 27 are installed from Software Update,
 # `brew install cocoapods` works and this file is no longer needed.

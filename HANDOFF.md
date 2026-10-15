@@ -44,6 +44,25 @@ General → VPN & Device Management → trust the Apple ID again.
   (`app/plancy/`, Markdown in `content/plancy/` copied there by
   `scripts/legal-pages.mjs`); signed-out access via `lib/public-paths.ts`.
   Still Jacky's: the homepage footer line with the SSM number.
+- **15 Oct:** Ivan Cheah (second developer on the repo, expected) pushed a
+  security and code-review pass (0319a3c): the install script now reads
+  `PLANCY_TEAM` and `IPHONE` from a gitignored `.env.local` (created on the
+  mini), simulator prebuilds need `PLANCY_DEV=1`, and Journal now moves on
+  at midnight. On top of it (4f73627, build 9): Journal's mood row removed
+  (old moods stay in the database, unshown), and task notes continue
+  numbered and bulleted lists on Return (`lib/lists.ts`). Fetch and
+  fast-forward before working: two people push to `main` now.
+- **Decided 15 Oct:** 1.1 = Siri (with "Log spending" for Apple Pay taps),
+  budgets, journal photos and videos (10 a day, videos to 60 s); 1.2 =
+  reading receipts, statements, payslips and screenshots, LHDN tax relief
+  tags, smart features, Journaling Suggestions. Statements start with CSV
+  and emailed PDFs, plus screenshots. The 1.1 plan page is revised.
+- **Clancy homepage drafts (15 Oct):**
+  https://claude.ai/artifact/Y2eWaBmgCDtjA7ybMyq88S — A "two doors", B "one
+  board", C "one letter apart", each with clear Clancy and plancy paths.
+  Waiting on Jacky's pick. The live homepage's plancy card wrongly says
+  plancy "syncs through your own iCloud"; it doesn't (DB copy, Sites →
+  Clancy homepage).
 - **Finance, Journal and Wallet draft (13 Oct):**
   https://claude.ai/artifact/WmAs7LsjPsUhNy6Hg1ZSqf — budgets; reading
   receipts, statements and payslips into a review list; journal photos and

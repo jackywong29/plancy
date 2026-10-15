@@ -6,17 +6,8 @@ import { useStore } from '@/data/store';
 import { useAddAction } from '@/lib/add-action';
 import { PrivateLock, useLock } from '@/lib/lock';
 import { haptic } from '@/lib/haptics';
-import type { Mood } from '@/data/types';
 import { addDays, formatDayLong, formatDayShort } from '@/lib/format';
 import { Space, Type, useTheme } from '@/theme/theme';
-
-const MOODS: { key: Mood; label: string; size: number }[] = [
-  { key: 'great', label: 'Great', size: 16 },
-  { key: 'good', label: 'Good', size: 13 },
-  { key: 'okay', label: 'Okay', size: 10 },
-  { key: 'low', label: 'Low', size: 8 },
-  { key: 'rough', label: 'Rough', size: 6 },
-];
 
 export default function JournalScreen() {
   const { journal, today, writeJournal } = useStore();
@@ -125,44 +116,6 @@ export default function JournalScreen() {
           </View>
         ) : null}
 
-        <View style={styles.moods}>
-          {MOODS.map((m) => {
-            const selected = entry?.mood === m.key;
-            return (
-              <Pressable
-                key={m.key}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={m.label}
-                onPress={() => {
-                  haptic('select');
-                  writeJournal(date, { mood: selected ? '' : m.key });
-                }}
-                style={[styles.mood, { backgroundColor: theme.card }, selected && { borderColor: theme.accent, borderWidth: 2 }]}
-              >
-                <View
-                  style={{
-                    width: m.size,
-                    height: m.size,
-                    borderRadius: m.size / 2,
-                    backgroundColor: selected ? theme.accent : theme.ink3,
-                    opacity: selected ? 1 : 0.45,
-                  }}
-                />
-                <Text
-                  style={{
-                    color: selected ? theme.ink : theme.ink2,
-                    fontSize: Type.caption,
-                    fontWeight: selected ? '600' : '500',
-                  }}
-                >
-                  {m.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
         <Card style={{ padding: Space.gutter }}>
           <TextInput
             ref={editor}
@@ -245,16 +198,6 @@ export default function JournalScreen() {
                 >
                   {e.body}
                 </Text>
-                {e.mood ? (
-                  <View
-                    style={{
-                      width: MOODS.find((m) => m.key === e.mood)?.size ?? 8,
-                      height: MOODS.find((m) => m.key === e.mood)?.size ?? 8,
-                      borderRadius: 8,
-                      backgroundColor: theme.accent,
-                    }}
-                  />
-                ) : null}
               </Row>
             ))}
           </Card>
@@ -293,16 +236,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
-  },
-  moods: { flexDirection: 'row', gap: 6, marginBottom: 10 },
-  mood: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 9,
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 2,
-    borderColor: 'transparent',
   },
   editorFoot: {
     flexDirection: 'row',

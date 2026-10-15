@@ -33,79 +33,10 @@ Seller: Clancy Sdn Bhd · Price: US$4.99, paid before download · iOS only
 
 ## 2. App Store listing
 
-### Name and subtitle
-
-**Name** (30 max): `Plancy: Daily Planner` — 21
-**Subtitle** (30 max): `Tasks, journal, ideas, money` — 28
-
-### Keywords (100 characters, comma-separated, no spaces after commas)
-
-```
-planner,daily,todo,task,journal,diary,habit,streak,budget,expense,offline,private,widget,no account
-```
-
-99 characters. Do **not** repeat words from the name or subtitle — Apple indexes
-those separately and the duplication wastes the field.
-
-### Promotional text (170 max, editable without a review)
-
-```
-Your whole day in one app: today's tasks, a line in the journal, the ideas you
-don't want to lose, and where the money went. No account. Nothing leaves your phone.
-```
-
-### Description
-
-```
-plancy is a daily planner for one person: you.
-
-Four things, one day. What you planned, how it went, what you thought of, and
-what it cost. They live on the same screen because they belong to the same day.
-
-TODAY
-Your week across the top, your tasks below. Tick one and feel it. Tasks can
-repeat daily, weekly or monthly, and plancy fills the coming week in for you.
-Reminders arrive on your phone even with no signal.
-
-JOURNAL
-One entry a day. Pick a mood, write a line, and plancy saves as you type.
-Search everything you've ever written.
-
-IDEAS
-Somewhere to put a thought before it goes anywhere else. Type #anything to
-file it. Star the good ones.
-
-FINANCE
-Income, savings, spending and bills, a month at a time. See what's left. Bills
-that repeat roll into the new month by themselves. Six months of cash flow in
-one chart.
-
-MADE THE WAY IT SHOULD BE
-• No account. No sign-up. No password.
-• Nothing leaves your phone. plancy has no server to send it to.
-• Works completely offline, because it always was.
-• Lock your journal and finances behind Face ID.
-• A home screen widget you can tick tasks from.
-• Light and dark, and twelve colours — or any colour you like.
-• Paid once. No subscription, ever.
-
-plancy is made in Malaysia by Clancy.
-```
-
-### Fields
-
-| Field | Value |
-|---|---|
-| Category | Productivity (primary) · Lifestyle (secondary) |
-| Age rating | 4+ |
-| Price | Tier US$4.99, paid before download |
-| Availability | See the EU question in §7 |
-| Support URL | `https://clancyhq.com/plancy/support` — page not built yet |
-| Marketing URL | `https://clancyhq.com/plancy` |
-| Privacy Policy URL | `https://clancyhq.com/plancy/privacy` — **required, no exceptions**. Not `/privacy`: that page is Clancy HQ's, and the CRM collects data plancy doesn't. Publish `docs/legal/plancy-privacy-policy.md` there (written from `src/legal/privacy.ts`). |
-| Licence agreement | Apple's Standard EULA — leave App Store Connect's EULA field empty. Settings → Terms of use links to it. |
-| EU trader status | plancy is sold, so Clancy Sdn Bhd is a **trader** under the EU Digital Services Act. App Store Connect asks for this before EU release; the address, phone and email entered are **shown on the EU App Store page**, so use the company's, not Jacky's own. |
-| Copyright | `2026 Clancy Sdn Bhd` |
+**Moved to `docs/app-store/LISTING.md`** (13 Oct): every App Store Connect
+field, ready to paste, with the privacy, age-rating and accessibility answers.
+The 18 Sep draft that was here had gone stale (no carry-over, nudges or Lock
+Screen widgets) and its keywords repeated words from the name and subtitle.
 
 ---
 
@@ -315,7 +246,7 @@ unchanged).
 | Risk | Guideline | Where plancy stands |
 |---|---|---|
 | **Habit nudges read as marketing** | 4.5.4 | Nudge is opt-in, default off, asked separately from reminders. **Do not bundle the two asks.** |
-| **Permission asked without context** | 5.1.1 | Fixed: onboarding primes the ask on its reminders page. `syncReminders` never asks. |
+| **Permission asked without context** | 5.1.1 | Fixed 20 Sep: onboarding primes the ask on its reminders page, `syncReminders` never asks, and nothing prompts at launch. |
 | **Minimum functionality** | 4.2 | Four substantial features, a widget, Face ID, recurrence. Not at risk. |
 | **Paid app with thin value** | 4.2 / 3.1.1 | Screenshots must show real depth. Reviewers do judge a US$4.99 utility on its first screenshot. |
 | **Face ID without a reason string** | 5.1.1 | `NSFaceIDUsageDescription` present. ✓ |
@@ -323,12 +254,7 @@ unchanged).
 | **Test tools visible** | 2.3 | `extra.testTools` must be absent. |
 | **Missing privacy manifest** | — | Automated upload rejection. Verify in the archive. |
 
-**Reviewer notes field** — say this:
-
-> plancy stores all data on the device using SQLite. There is no account, no
-> server and no network request in the app. Notifications are scheduled locally
-> with UNUserNotificationCenter. The morning nudge is off by default and must be
-> enabled in Settings. No login is required to use any feature.
+**Reviewer notes field**: the current text is in `docs/app-store/LISTING.md`.
 
 No demo account is needed — say so explicitly, so the reviewer does not ask.
 

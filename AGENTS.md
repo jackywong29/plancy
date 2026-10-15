@@ -117,7 +117,10 @@ src/theme/theme.tsx        light/dark tokens, useTheme(), type scale
   Settings → Privacy policy). Anything that sends data off the phone (iCloud
   sync, a crash reporter, analytics) changes the policy and its date first;
   then `node scripts/legal-pages.mjs` refreshes the website copy in
-  `docs/legal/`. A test fails if the two differ.
+  `docs/legal/` and copies both pages (privacy, support) into the Clancy HQ
+  repo (`~/Developer/Claude/crm-platform/content/plancy/`), which serves them
+  at clancyhq.com/plancy/privacy and /plancy/support. A test fails if the
+  app and docs copies differ; pushing that repo publishes the site copy.
 - **Open-source licences**: after adding, removing or updating a dependency,
   run `node scripts/licences.mjs` (it bundles the app to see what ships). The
   legal test fails until you do.

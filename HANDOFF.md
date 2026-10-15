@@ -10,8 +10,8 @@ app called **plancy.**, to be sold on the App Store by his company Clancy.
 Nothing is public yet. It runs in the simulator and on Jacky's own iPhone 17
 Pro Max, installed over the cable with his free Apple ID (see "On Jacky's
 iPhone" below). **That signing lasts 7 days: it was last renewed from the
-Mac mini on 6 Oct (build 7; build 8 went on the same day under the same
-profile) and expires 13 Oct, 2:22 pm KL time.** Plug the
+Mac mini on 13 Oct (build 8, a new profile, so the phone had to trust the
+Apple ID again) and expires 20 Oct, 4:25 pm KL time.** Plug the
 phone in (or have it on the same Wi-Fi) and run `sh scripts/install-on-iphone.sh`
 to renew it; data survives. A renewal after a new profile may need Settings →
 General → VPN & Device Management → trust the Apple ID again.
@@ -32,6 +32,24 @@ General → VPN & Device Management → trust the Apple ID again.
   describe what plancy *is*, not what it was once meant to be. The
   Implementation Guide carries the week-by-week plan to the 9 Nov submission.
 - **Launch plan:** https://claude.ai/artifact/FtoMDwzjv6KxCXDfqWZA9P
+- **Launch guide (13 Oct):** https://claude.ai/artifact/Ebdch8qJThvUfBzM8nQi2n
+  — the 23 steps from enrolment to release, who does each, and the App Store
+  Connect text with copy buttons. The text's source is
+  `docs/app-store/LISTING.md`; the support page is
+  `docs/legal/plancy-support.md`. Jacky asked on 13 Oct for the launch steps,
+  so the enrolment hold is lifting: to submit the week of 9 Nov he needs to
+  enrol that week.
+- **plancy's web pages (13 Oct):** https://clancyhq.com/plancy/privacy and
+  https://clancyhq.com/plancy/support, live. Served by the Clancy HQ repo
+  (`app/plancy/`, Markdown in `content/plancy/` copied there by
+  `scripts/legal-pages.mjs`); signed-out access via `lib/public-paths.ts`.
+  Still Jacky's: the homepage footer line with the SSM number.
+- **Finance, Journal and Wallet draft (13 Oct):**
+  https://claude.ai/artifact/WmAs7LsjPsUhNy6Hg1ZSqf — budgets; reading
+  receipts, statements and payslips into a review list; journal photos and
+  videos; Wallet passes and FinanceKit scratched, Apple Pay taps via a
+  Shortcuts automation kept. Proposes 1.1 = budgets + photos + Siri, 1.2 =
+  reading receipts + smart features. Four decisions waiting on Jacky.
 - **1.1 plan (6 Oct):** https://claude.ai/artifact/PKo5Ldy1QmntUeAUEXnfnA —
   Siri through App Intents, smart quick-add on Apple's on-device model
   (Foundation Models), four weeks after 1.0 is submitted. No downloadable

@@ -17,6 +17,7 @@ import { useStore, type Scope } from '@/data/store';
 import type { Repeat } from '@/data/types';
 import { addDays, formatDayShort, fromIso, isoDate, validDate } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { continueList } from '@/lib/lists';
 import { Space, Type, useTheme } from '@/theme/theme';
 
 const REPEATS: { value: Repeat; label: string }[] = [
@@ -133,7 +134,8 @@ export default function TaskSheet() {
           <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.line, marginLeft: Space.gutter }} />
           <TextInput
             value={notes}
-            onChangeText={setNotes}
+            // Return after "1. Milk" starts "2. ", as in Notes (lib/lists.ts).
+            onChangeText={(text) => setNotes((prev) => continueList(prev, text))}
             placeholder="Notes"
             placeholderTextColor={theme.ink3}
             keyboardAppearance={theme.scheme}
